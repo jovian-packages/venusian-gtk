@@ -2,34 +2,41 @@
 
 namespace Jovian\Venusian\GTK\Views;
 
-use Jovian\Bindings\Gtk\Gtk\GtkButton as GtkButtonWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkFixed;
+use Jovian\Bindings\Gtk\Gtk\GtkScale;
 use Jovian\Bindings\Gtk\Gtk\GtkWidget;
-use Surface\NativeWindows\Views\Button;
 use Jovian\Venusian\GTK\Windows\GTKWindowDelegate;
 use Surface\Contracts\NativeWindows\Views\Color;
-use Surface\Contracts\NativeWindows\Views\FontSpec;
+use Surface\NativeWindows\Views\Slider;
 use Surface\NativeWindows\Windowable;
 
 /**
- * A Surface button over a GtkButton in the scaffold's GtkFixed. The
- * `clicked` signal lands in fireClick(), so the sketch's hook runs inside
- * the pump that delivered the click.
+ * A Surface slider over a horizontal GtkScale. value-changed streams while
+ * the thumb drags; the applying flag keeps Surface's own writes from
+ * echoing back as mail.
  */
-class GTKButton extends Button
+class GTKSlider extends Slider
 {
     use TranslatesGtkFrames;
+
+    protected bool $applying = false;
 
     public function __construct(
         string $name,
         Windowable $window,
-        string $label,
-        public readonly GtkButtonWidget $native,
+        float $min,
+        float $max,
+        float $value,
+        public readonly GtkScale $native,
         protected GtkFixed $content,
     ) {
-        parent::__construct($name, $window, $label);
+        parent::__construct($name, $window, $min, $max, $value);
 
-        $native->onClicked(fn (mixed ...$args) => $this->fireClick());
+        $native->onValueChanged(function (mixed ...$args): void {
+            if (! $this->applying) {
+                $this->fireChanged($this->native->getValue());
+            }
+        });
     }
 
     protected function widget(): GtkWidget
@@ -42,28 +49,23 @@ class GTKButton extends Button
         return $this->content;
     }
 
-    protected function applyLabel(string $label): void
+    protected function applyValue(float $value): void
     {
-        $this->native->setLabel($label);
+        $this->applying = true;
+        $this->native->setValue($value);
+        $this->applying = false;
+    }
+
+    protected function applyRange(float $min, float $max): void
+    {
+        $this->applying = true;
+        $this->native->setRange($min, $max);
+        $this->applying = false;
     }
 
     protected function applyEnabled(bool $enabled): void
     {
         $this->native->setSensitive($enabled);
-    }
-
-    protected function applyTextColor(Color $color): void
-    {
-        $this->css('color', $color->toCss());
-    }
-
-    protected function applyFont(FontSpec $font): void
-    {
-        $this->css('font-size', "{$font->size}px");
-        $this->css('font-weight', (string) $font->weight->toCssWeight());
-        if (! is_null($font->family)) {
-            $this->css('font-family', $font->family);
-        }
     }
 
     protected function applyBackground(Color $color): void
@@ -80,7 +82,6 @@ class GTKButton extends Button
         $this->fixed()->remove($this->widget());
     }
 
-    /** One declaration into this window's stylesheet, keyed to this view. */
     protected function css(string $property, string $value): void
     {
         /** @var GTKWindowDelegate $delegate */

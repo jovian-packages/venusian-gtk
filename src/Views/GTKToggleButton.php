@@ -2,34 +2,41 @@
 
 namespace Jovian\Venusian\GTK\Views;
 
-use Jovian\Bindings\Gtk\Gtk\GtkButton as GtkButtonWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkFixed;
+use Jovian\Bindings\Gtk\Gtk\GtkToggleButton as GtkToggleButtonWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkWidget;
-use Surface\NativeWindows\Views\Button;
 use Jovian\Venusian\GTK\Windows\GTKWindowDelegate;
 use Surface\Contracts\NativeWindows\Views\Color;
 use Surface\Contracts\NativeWindows\Views\FontSpec;
+use Surface\NativeWindows\Views\ToggleButton;
 use Surface\NativeWindows\Windowable;
 
 /**
- * A Surface button over a GtkButton in the scaffold's GtkFixed. The
- * `clicked` signal lands in fireClick(), so the sketch's hook runs inside
- * the pump that delivered the click.
+ * A Surface toggle button over a GtkToggleButton. `toggled` fires after
+ * the state settles; the applying flag keeps Surface's own setPressed()
+ * from echoing back as mail.
  */
-class GTKButton extends Button
+class GTKToggleButton extends ToggleButton
 {
     use TranslatesGtkFrames;
+
+    protected bool $applying = false;
 
     public function __construct(
         string $name,
         Windowable $window,
         string $label,
-        public readonly GtkButtonWidget $native,
+        bool $pressed,
+        public readonly GtkToggleButtonWidget $native,
         protected GtkFixed $content,
     ) {
-        parent::__construct($name, $window, $label);
+        parent::__construct($name, $window, $label, $pressed);
 
-        $native->onClicked(fn (mixed ...$args) => $this->fireClick());
+        $native->onToggled(function (mixed ...$args): void {
+            if (! $this->applying) {
+                $this->fireToggled($this->native->getActive());
+            }
+        });
     }
 
     protected function widget(): GtkWidget
@@ -45,6 +52,13 @@ class GTKButton extends Button
     protected function applyLabel(string $label): void
     {
         $this->native->setLabel($label);
+    }
+
+    protected function applyPressed(bool $pressed): void
+    {
+        $this->applying = true;
+        $this->native->setActive($pressed);
+        $this->applying = false;
     }
 
     protected function applyEnabled(bool $enabled): void
@@ -80,7 +94,6 @@ class GTKButton extends Button
         $this->fixed()->remove($this->widget());
     }
 
-    /** One declaration into this window's stylesheet, keyed to this view. */
     protected function css(string $property, string $value): void
     {
         /** @var GTKWindowDelegate $delegate */

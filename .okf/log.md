@@ -1,5 +1,47 @@
 # jovian/venusian-gtk Update Log
 
+## 2026-09-04 (visibility)
+* **Update**: `applyVisible(bool)` lands for Surface's new
+  `setVisible/show/hide`: GtkWidget setVisible through TranslatesGtkFrames — one edit covered all sixteen twins. Hiding a container hides the subtree
+  natively.
+
+## 2026-09-04 (Pi smoke + text read-back)
+* **Verified live** (Pi, gtk4 4.18.6, over the fnk loop): the whole
+  primitive wave — all eleven twins conjure, write through, and every
+  signal seam lands driven from the native side, including
+  `notify::active` and `notify::selected` through `Bridge::connect`;
+  group hosting/cascade/subtree removal against real GtkFixeds; scroll
+  extent honored. One measurement note: `gtk_fixed_get_child_position`
+  answers the INNER allocation offset for widgets whose CSS box centres
+  smaller content (buttons) — the rendered truth is `computeBounds`, which
+  confirms placement exact.
+* **Update**: `GTKTextArea` reads its buffer back — the ext unreserved
+  `gtk_text_buffer_get_text` (iters as offsets, 0..-1 = whole buffer), so
+  edits fire with the real text and the null-value lane is gone from
+  Surface's TextArea contract. Proven live: hook receives the typed text,
+  offset slicing works.
+
+## 2026-09-03 (primitive wave + containers)
+* **Creation**: Eleven twins for Surface's new view kinds. Controls:
+  `GTKTextInput` (GtkEntry / GtkPasswordEntry via GtkEditable — the
+  password entry has no placeholder, ignored stated), `GTKTextArea`
+  (GtkTextView + GtkTextBuffer in a GtkScrolledWindow — the ext reserves
+  `gtk_text_buffer_get_text`, so edits fire with a NULL value and value()
+  answers the last write), `GTKSlider` (GtkScale, value-changed),
+  `GTKToggle` (GtkSwitch, `Bridge::connect('notify::active')`),
+  `GTKToggleButton` / `GTKCheckbox` (toggled), `GTKProgressBar`
+  (setFraction), `GTKSeparator`, `GTKDropdown` (GtkDropDown +
+  GtkStringList, `notify::selected` through the generic connect — Pi
+  smoke owed). Containers: `GTKGroup` (own GtkFixed, overflow HIDDEN) and
+  `GTKScrollView` (GtkScrolledWindow + inner GtkFixed sized by the
+  extent; policy NEVER/AUTOMATIC). New seam: `HostsGtkChildren` — mints
+  put into `childFixed()` when conjured `in:` a container, and the same
+  fixed rides into the twin so frame moves land on the right parent.
+  EVERY control twin carries an `applying` flag: GTK fires signals for
+  programmatic writes, Surface's own setters must not echo as mail.
+  Case-insensitivity bites again: `GTKDropdown` vs `GtkDropDown`, aliased
+  `GtkDropDownWidget`. Class-load verified; Pi smoke owed.
+
 ## 2026-08-31 (video)
 * **Creation**: `GTKVideo` over `GtkVideo` (aliased `GtkVideoWidget`) with a
   `GtkMediaFile` held per path; play/pause/mute ride the inherited GtkMediaStream

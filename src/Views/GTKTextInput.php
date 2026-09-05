@@ -2,34 +2,47 @@
 
 namespace Jovian\Venusian\GTK\Views;
 
-use Jovian\Bindings\Gtk\Gtk\GtkButton as GtkButtonWidget;
+use Jovian\Bindings\Gtk\Gtk\GtkEntry;
 use Jovian\Bindings\Gtk\Gtk\GtkFixed;
+use Jovian\Bindings\Gtk\Gtk\GtkPasswordEntry;
 use Jovian\Bindings\Gtk\Gtk\GtkWidget;
-use Surface\NativeWindows\Views\Button;
 use Jovian\Venusian\GTK\Windows\GTKWindowDelegate;
 use Surface\Contracts\NativeWindows\Views\Color;
 use Surface\Contracts\NativeWindows\Views\FontSpec;
+use Surface\NativeWindows\Views\TextInput;
 use Surface\NativeWindows\Windowable;
 
 /**
- * A Surface button over a GtkButton in the scaffold's GtkFixed. The
- * `clicked` signal lands in fireClick(), so the sketch's hook runs inside
- * the pump that delivered the click.
+ * A Surface text input over a GtkEntry — or a GtkPasswordEntry for a
+ * secret one, which has no placeholder API, so the placeholder is ignored
+ * there. Both carry GtkEditable, so edits read the text straight back.
+ *
+ * GTK fires `changed` for programmatic writes too; the applying flag keeps
+ * Surface's own setValue() from echoing back as mail.
  */
-class GTKButton extends Button
+class GTKTextInput extends TextInput
 {
     use TranslatesGtkFrames;
+
+    protected bool $applying = false;
 
     public function __construct(
         string $name,
         Windowable $window,
-        string $label,
-        public readonly GtkButtonWidget $native,
+        string $value,
+        ?string $placeholder,
+        bool $secret,
+        public readonly GtkEntry|GtkPasswordEntry $native,
         protected GtkFixed $content,
     ) {
-        parent::__construct($name, $window, $label);
+        parent::__construct($name, $window, $value, $placeholder, $secret);
 
-        $native->onClicked(fn (mixed ...$args) => $this->fireClick());
+        $native->onChanged(function (mixed ...$args): void {
+            if (! $this->applying) {
+                $this->fireChanged($this->native->getText() ?? '');
+            }
+        });
+        $native->onActivate(fn (mixed ...$args) => $this->fireSubmitted());
     }
 
     protected function widget(): GtkWidget
@@ -42,9 +55,19 @@ class GTKButton extends Button
         return $this->content;
     }
 
-    protected function applyLabel(string $label): void
+    protected function applyValue(string $value): void
     {
-        $this->native->setLabel($label);
+        $this->applying = true;
+        $this->native->setText($value);
+        $this->applying = false;
+    }
+
+    protected function applyPlaceholder(string $placeholder): void
+    {
+        // A password entry has no placeholder — GTK's honest answer is none.
+        if ($this->native instanceof GtkEntry) {
+            $this->native->setPlaceholderText($placeholder);
+        }
     }
 
     protected function applyEnabled(bool $enabled): void

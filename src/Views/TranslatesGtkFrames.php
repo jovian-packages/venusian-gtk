@@ -40,4 +40,9 @@ trait TranslatesGtkFrames
     {
         $this->fixed()->remove($this->widget());
     }
+
+    protected function applyVisible(bool $visible): void
+    {
+        $this->widget()->setVisible($visible);
+    }
 }

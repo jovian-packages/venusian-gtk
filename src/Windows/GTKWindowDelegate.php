@@ -18,19 +18,57 @@ use Surface\Contracts\NativeWindows\LinuxOSWindow;
 use Surface\NativeWindows\Enums\MenuRole;
 use Jovian\Venusian\GTK\Styles\CssEngine;
 use Jovian\Bindings\Gtk\Enums\GtkContentFit;
+use Jovian\Bindings\Gtk\Enums\GtkOverflow;
+use Jovian\Bindings\Gtk\Enums\GtkPolicyType;
+use Jovian\Bindings\Gtk\Gtk\GtkCheckButton as GtkCheckButtonWidget;
+use Jovian\Bindings\Gtk\Gtk\GtkDropDown as GtkDropDownWidget;
+use Jovian\Bindings\Gtk\Gtk\GtkEntry;
+use Jovian\Bindings\Gtk\Gtk\GtkPasswordEntry;
 use Jovian\Bindings\Gtk\Gtk\GtkPicture;
+use Jovian\Bindings\Gtk\Gtk\GtkProgressBar as GtkProgressBarWidget;
+use Jovian\Bindings\Gtk\Gtk\GtkScale;
+use Jovian\Bindings\Gtk\Gtk\GtkScrolledWindow;
+use Jovian\Bindings\Gtk\Gtk\GtkSeparator as GtkSeparatorWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkSpinner as GtkSpinnerWidget;
+use Jovian\Bindings\Gtk\Gtk\GtkSwitch;
+use Jovian\Bindings\Gtk\Gtk\GtkTextBuffer;
+use Jovian\Bindings\Gtk\Gtk\GtkTextView;
+use Jovian\Bindings\Gtk\Gtk\GtkToggleButton as GtkToggleButtonWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkVideo as GtkVideoWidget;
 use Jovian\Venusian\GTK\Views\GTKButton;
+use Jovian\Venusian\GTK\Views\GTKCheckbox;
+use Jovian\Venusian\GTK\Views\GTKDropdown;
+use Jovian\Venusian\GTK\Views\GTKGroup;
 use Jovian\Venusian\GTK\Views\GTKImage;
 use Jovian\Venusian\GTK\Views\GTKLabel;
+use Jovian\Venusian\GTK\Views\GTKProgressBar;
+use Jovian\Venusian\GTK\Views\GTKScrollView;
+use Jovian\Venusian\GTK\Views\GTKSeparator;
+use Jovian\Venusian\GTK\Views\GTKSlider;
 use Jovian\Venusian\GTK\Views\GTKSpinner;
+use Jovian\Venusian\GTK\Views\GTKTextArea;
+use Jovian\Venusian\GTK\Views\GTKTextInput;
+use Jovian\Venusian\GTK\Views\GTKToggle;
+use Jovian\Venusian\GTK\Views\GTKToggleButton;
 use Jovian\Venusian\GTK\Views\GTKVideo;
+use Jovian\Venusian\GTK\Views\HostsGtkChildren;
+use Surface\Contracts\NativeWindows\Views\OSGroup;
 use Surface\NativeWindows\Menus\MenuItemSpec;
 use Surface\NativeWindows\Views\Button;
+use Surface\NativeWindows\Views\Checkbox;
+use Surface\NativeWindows\Views\Dropdown;
+use Surface\NativeWindows\Views\Group;
 use Surface\NativeWindows\Views\Image;
 use Surface\NativeWindows\Views\Label;
+use Surface\NativeWindows\Views\ProgressBar;
+use Surface\NativeWindows\Views\ScrollView;
+use Surface\NativeWindows\Views\Separator;
+use Surface\NativeWindows\Views\Slider;
 use Surface\NativeWindows\Views\Spinner;
+use Surface\NativeWindows\Views\TextArea;
+use Surface\NativeWindows\Views\TextInput;
+use Surface\NativeWindows\Views\Toggle;
+use Surface\NativeWindows\Views\ToggleButton;
 use Surface\NativeWindows\Views\Video;
 use Surface\NativeWindows\Windowable;
 
@@ -184,39 +222,52 @@ class GTKWindowDelegate extends Windowable implements LinuxOSWindow
     }
 
     /**
-     * Put a GtkLabel into the content at the origin; Windowable::label()
+     * The GtkFixed a mint puts its widget into: a hosting container's
+     * child fixed, or the window content. The same fixed rides into the
+     * twin so its frame moves land on the right parent.
+     */
+    protected function mintFixed(?OSGroup $in): GtkFixed
+    {
+        return $in instanceof HostsGtkChildren ? $in->childFixed() : $this->content;
+    }
+
+    /**
+     * Put a GtkLabel into the surface at the origin; Windowable::label()
      * places it after.
      */
-    protected function mintLabel(string $name, string $text): Label
+    protected function mintLabel(string $name, string $text, ?OSGroup $in): Label
     {
+        $fixed = $this->mintFixed($in);
         $widget = GtkLabelWidget::new($text);
-        $this->content->put($widget, 0.0, 0.0);
+        $fixed->put($widget, 0.0, 0.0);
 
-        return new GTKLabel($name, $this, $text, $widget, $this->content);
+        return new GTKLabel($name, $this, $text, $widget, $fixed);
     }
 
     /**
-     * Put a GtkButton into the content at the origin; the GTKButton wires
+     * Put a GtkButton into the surface at the origin; the GTKButton wires
      * `clicked` itself. Placed by Windowable::button().
      */
-    protected function mintButton(string $name, string $label): Button
+    protected function mintButton(string $name, string $label, ?OSGroup $in): Button
     {
+        $fixed = $this->mintFixed($in);
         $widget = GtkButtonWidget::newWithLabel($label);
-        $this->content->put($widget, 0.0, 0.0);
+        $fixed->put($widget, 0.0, 0.0);
 
-        return new GTKButton($name, $this, $label, $widget, $this->content);
+        return new GTKButton($name, $this, $label, $widget, $fixed);
     }
 
     /**
-     * A GtkSpinner in the content at the origin, stopped. Placed by
+     * A GtkSpinner in the surface at the origin, stopped. Placed by
      * Windowable::spinner().
      */
-    protected function mintSpinner(string $name): Spinner
+    protected function mintSpinner(string $name, ?OSGroup $in): Spinner
     {
+        $fixed = $this->mintFixed($in);
         $widget = GtkSpinnerWidget::new();
-        $this->content->put($widget, 0.0, 0.0);
+        $fixed->put($widget, 0.0, 0.0);
 
-        return new GTKSpinner($name, $this, $widget, $this->content);
+        return new GTKSpinner($name, $this, $widget, $fixed);
     }
 
     /**
@@ -224,31 +275,194 @@ class GTKWindowDelegate extends Windowable implements LinuxOSWindow
      * aspect ratio, can-shrink keeps a big picture from flooring measure()
      * at its full size. Placed by Windowable::image().
      */
-    protected function mintImage(string $name, ?string $path): Image
+    protected function mintImage(string $name, ?string $path, ?OSGroup $in): Image
     {
+        $fixed = $this->mintFixed($in);
         $widget = is_null($path) ? GtkPicture::new() : GtkPicture::newForFilename($path);
         $widget->setContentFit(GtkContentFit::CONTAIN);
         $widget->setCanShrink(true);
-        $this->content->put($widget, 0.0, 0.0);
+        $fixed->put($widget, 0.0, 0.0);
 
-        return new GTKImage($name, $this, $path, $widget, $this->content);
+        return new GTKImage($name, $this, $path, $widget, $fixed);
     }
 
     /**
-     * A GtkVideo in the content at the origin; the GTKVideo mints a
+     * A GtkVideo in the surface at the origin; the GTKVideo mints a
      * GtkMediaFile per path itself. Placed by Windowable::video().
      */
-    protected function mintVideo(string $name, ?string $path): Video
+    protected function mintVideo(string $name, ?string $path, ?OSGroup $in): Video
     {
+        $fixed = $this->mintFixed($in);
         $widget = GtkVideoWidget::new();
-        $this->content->put($widget, 0.0, 0.0);
+        $fixed->put($widget, 0.0, 0.0);
 
-        $video = new GTKVideo($name, $this, null, $widget, $this->content);
+        $video = new GTKVideo($name, $this, null, $widget, $fixed);
         if (! is_null($path)) {
             $video->setPath($path);
         }
 
         return $video;
+    }
+
+    /**
+     * A GtkEntry — or a GtkPasswordEntry for a secret input, which masks
+     * its glyphs itself. The GTKTextInput wires `changed` and `activate`.
+     */
+    protected function mintTextInput(string $name, string $value, ?string $placeholder, bool $secret, ?OSGroup $in): TextInput
+    {
+        $fixed = $this->mintFixed($in);
+        $widget = $secret ? GtkPasswordEntry::new() : GtkEntry::new();
+        $widget->setText($value);
+        if (! $secret && ! is_null($placeholder)) {
+            $widget->setPlaceholderText($placeholder);
+        }
+        $fixed->put($widget, 0.0, 0.0);
+
+        return new GTKTextInput($name, $this, $value, $placeholder, $secret, $widget, $fixed);
+    }
+
+    /**
+     * A GtkTextView over its own buffer inside a GtkScrolledWindow; the
+     * GTKTextArea wires the buffer's `changed` itself.
+     */
+    protected function mintTextArea(string $name, string $value, ?OSGroup $in): TextArea
+    {
+        $fixed = $this->mintFixed($in);
+        $buffer = GtkTextBuffer::new(null);
+        $buffer->setText($value, -1);
+        $text = GtkTextView::newWithBuffer($buffer);
+        $scrolled = GtkScrolledWindow::new();
+        $scrolled->setChild($text);
+        $fixed->put($scrolled, 0.0, 0.0);
+
+        return new GTKTextArea($name, $this, $value, $scrolled, $text, $buffer, $fixed);
+    }
+
+    /**
+     * A horizontal GtkScale over the range, value drawn nowhere — Surface
+     * owns presentation. The GTKSlider wires `value-changed` itself.
+     */
+    protected function mintSlider(string $name, float $min, float $max, float $value, ?OSGroup $in): Slider
+    {
+        $fixed = $this->mintFixed($in);
+        $step = $max > $min ? ($max - $min) / 100.0 : 1.0;
+        $widget = GtkScale::newWithRange(GtkOrientation::HORIZONTAL, $min, $max, $step);
+        $widget->setDrawValue(false);
+        $widget->setValue($value);
+        $fixed->put($widget, 0.0, 0.0);
+
+        return new GTKSlider($name, $this, $min, $max, $value, $widget, $fixed);
+    }
+
+    /**
+     * A GtkSwitch holding the initial state; the GTKToggle listens on
+     * notify::active itself.
+     */
+    protected function mintToggle(string $name, bool $on, ?OSGroup $in): Toggle
+    {
+        $fixed = $this->mintFixed($in);
+        $widget = GtkSwitch::new();
+        $widget->setActive($on);
+        $fixed->put($widget, 0.0, 0.0);
+
+        return new GTKToggle($name, $this, $on, $widget, $fixed);
+    }
+
+    /**
+     * A GtkToggleButton; the GTKToggleButton wires `toggled` itself.
+     */
+    protected function mintToggleButton(string $name, string $label, bool $pressed, ?OSGroup $in): ToggleButton
+    {
+        $fixed = $this->mintFixed($in);
+        $widget = GtkToggleButtonWidget::newWithLabel($label);
+        $widget->setActive($pressed);
+        $fixed->put($widget, 0.0, 0.0);
+
+        return new GTKToggleButton($name, $this, $label, $pressed, $widget, $fixed);
+    }
+
+    /**
+     * A GtkCheckButton; the GTKCheckbox wires `toggled` itself.
+     */
+    protected function mintCheckbox(string $name, string $label, bool $checked, ?OSGroup $in): Checkbox
+    {
+        $fixed = $this->mintFixed($in);
+        $widget = GtkCheckButtonWidget::newWithLabel($label);
+        $widget->setActive($checked);
+        $fixed->put($widget, 0.0, 0.0);
+
+        return new GTKCheckbox($name, $this, $label, $checked, $widget, $fixed);
+    }
+
+    /**
+     * A GtkProgressBar — fraction is already 0..1, Surface's promise.
+     */
+    protected function mintProgressBar(string $name, float $progress, ?OSGroup $in): ProgressBar
+    {
+        $fixed = $this->mintFixed($in);
+        $widget = GtkProgressBarWidget::new();
+        $widget->setFraction($progress);
+        $fixed->put($widget, 0.0, 0.0);
+
+        return new GTKProgressBar($name, $this, $progress, $widget, $fixed);
+    }
+
+    /**
+     * A GtkDropDown over a string list; the GTKDropdown listens on
+     * notify::selected itself.
+     */
+    protected function mintDropdown(string $name, array $options, int $selected, ?OSGroup $in): Dropdown
+    {
+        $fixed = $this->mintFixed($in);
+        $widget = GtkDropDownWidget::newFromStrings(array_values($options));
+        if ($options !== []) {
+            $widget->setSelected(max(0, min(count($options) - 1, $selected)));
+        }
+        $fixed->put($widget, 0.0, 0.0);
+
+        return new GTKDropdown($name, $this, $options, $selected, $widget, $fixed);
+    }
+
+    /**
+     * A GtkSeparator in the orientation the conjure-time aspect decided.
+     */
+    protected function mintSeparator(string $name, bool $horizontal, ?OSGroup $in): Separator
+    {
+        $fixed = $this->mintFixed($in);
+        $widget = GtkSeparatorWidget::new($horizontal ? GtkOrientation::HORIZONTAL : GtkOrientation::VERTICAL);
+        $fixed->put($widget, 0.0, 0.0);
+
+        return new GTKSeparator($name, $this, $horizontal, $widget, $fixed);
+    }
+
+    /**
+     * A GtkFixed as the container surface, overflow hidden so the group
+     * clips its subtree. Children conjured into the group put onto it.
+     */
+    protected function mintGroup(string $name, ?OSGroup $in): Group
+    {
+        $fixed = $this->mintFixed($in);
+        $surface = GtkFixed::new();
+        $surface->setOverflow(GtkOverflow::HIDDEN);
+        $fixed->put($surface, 0.0, 0.0);
+
+        return new GTKGroup($name, $this, $surface, $fixed);
+    }
+
+    /**
+     * A GtkScrolledWindow over an inner GtkFixed sized later by the
+     * content extent. Vertical scrolling only, matching the macOS twin.
+     */
+    protected function mintScrollView(string $name, ?OSGroup $in): ScrollView
+    {
+        $fixed = $this->mintFixed($in);
+        $inner = GtkFixed::new();
+        $scrolled = GtkScrolledWindow::new();
+        $scrolled->setChild($inner);
+        $scrolled->setPolicy(GtkPolicyType::NEVER, GtkPolicyType::AUTOMATIC);
+        $fixed->put($scrolled, 0.0, 0.0);
+
+        return new GTKScrollView($name, $this, $scrolled, $inner, $fixed);
     }
 
     /**

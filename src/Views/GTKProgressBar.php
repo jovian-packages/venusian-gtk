@@ -2,34 +2,30 @@
 
 namespace Jovian\Venusian\GTK\Views;
 
-use Jovian\Bindings\Gtk\Gtk\GtkButton as GtkButtonWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkFixed;
+use Jovian\Bindings\Gtk\Gtk\GtkProgressBar as GtkProgressBarWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkWidget;
-use Surface\NativeWindows\Views\Button;
 use Jovian\Venusian\GTK\Windows\GTKWindowDelegate;
 use Surface\Contracts\NativeWindows\Views\Color;
-use Surface\Contracts\NativeWindows\Views\FontSpec;
+use Surface\NativeWindows\Views\ProgressBar;
 use Surface\NativeWindows\Windowable;
 
 /**
- * A Surface button over a GtkButton in the scaffold's GtkFixed. The
- * `clicked` signal lands in fireClick(), so the sketch's hook runs inside
- * the pump that delivered the click.
+ * A Surface progress bar over a GtkProgressBar — its fraction is already
+ * 0..1, exactly Surface's promise.
  */
-class GTKButton extends Button
+class GTKProgressBar extends ProgressBar
 {
     use TranslatesGtkFrames;
 
     public function __construct(
         string $name,
         Windowable $window,
-        string $label,
-        public readonly GtkButtonWidget $native,
+        float $progress,
+        public readonly GtkProgressBarWidget $native,
         protected GtkFixed $content,
     ) {
-        parent::__construct($name, $window, $label);
-
-        $native->onClicked(fn (mixed ...$args) => $this->fireClick());
+        parent::__construct($name, $window, $progress);
     }
 
     protected function widget(): GtkWidget
@@ -42,28 +38,9 @@ class GTKButton extends Button
         return $this->content;
     }
 
-    protected function applyLabel(string $label): void
+    protected function applyProgress(float $progress): void
     {
-        $this->native->setLabel($label);
-    }
-
-    protected function applyEnabled(bool $enabled): void
-    {
-        $this->native->setSensitive($enabled);
-    }
-
-    protected function applyTextColor(Color $color): void
-    {
-        $this->css('color', $color->toCss());
-    }
-
-    protected function applyFont(FontSpec $font): void
-    {
-        $this->css('font-size', "{$font->size}px");
-        $this->css('font-weight', (string) $font->weight->toCssWeight());
-        if (! is_null($font->family)) {
-            $this->css('font-family', $font->family);
-        }
+        $this->native->setFraction($progress);
     }
 
     protected function applyBackground(Color $color): void
@@ -80,7 +57,6 @@ class GTKButton extends Button
         $this->fixed()->remove($this->widget());
     }
 
-    /** One declaration into this window's stylesheet, keyed to this view. */
     protected function css(string $property, string $value): void
     {
         /** @var GTKWindowDelegate $delegate */
