@@ -2,6 +2,7 @@
 
 namespace Jovian\Venusian\GTK\Windows;
 
+use Jovian\Bindings\Gtk\Enums\GdkGLAPI;
 use Jovian\Bindings\Gtk\Enums\GtkOrientation;
 use Jovian\Bindings\Gtk\Gio\GMenu;
 use Jovian\Bindings\Gtk\Gio\GSimpleAction;
@@ -9,11 +10,18 @@ use Jovian\Bindings\Gtk\Gio\GSimpleActionGroup;
 use Jovian\Bindings\Gtk\Gtk\GtkAboutDialog;
 use Jovian\Bindings\Gtk\Gtk\GtkBox;
 use Jovian\Bindings\Gtk\Gtk\GtkButton as GtkButtonWidget;
+use Jovian\Bindings\Gtk\Gtk\GtkCalendar as GtkCalendarWidget;
+use Jovian\Bindings\Gtk\Gtk\GtkColumnView;
 use Jovian\Bindings\Gtk\Gtk\GtkFixed;
+use Jovian\Bindings\Gtk\Gtk\GtkGLArea;
 use Jovian\Bindings\Gtk\Gtk\GtkLabel as GtkLabelWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkPopoverMenuBar;
 use Jovian\Bindings\Gtk\Gtk\GtkWindow;
 use Surface\Contracts\Core\AboutInfo;
+use Surface\Contracts\Drawing\GPUEngineDriver;
+use Surface\Contracts\Drawing\GPUHost;
+use Surface\Contracts\Drawing\SurfaceKind;
+use Surface\Contracts\NativeWindows\GPUViewException;
 use Surface\Contracts\NativeWindows\LinuxOSWindow;
 use Surface\NativeWindows\Enums\MenuRole;
 use Jovian\Venusian\GTK\Styles\CssEngine;
@@ -22,6 +30,8 @@ use Jovian\Bindings\Gtk\Enums\GtkOverflow;
 use Jovian\Bindings\Gtk\Enums\GtkPolicyType;
 use Jovian\Bindings\Gtk\Gtk\GtkCheckButton as GtkCheckButtonWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkDropDown as GtkDropDownWidget;
+use Jovian\Bindings\Gtk\Gtk\GtkSingleSelection;
+use Jovian\Bindings\Gtk\Gtk\GtkStringList;
 use Jovian\Bindings\Gtk\Gtk\GtkEntry;
 use Jovian\Bindings\Gtk\Gtk\GtkPasswordEntry;
 use Jovian\Bindings\Gtk\Gtk\GtkPicture;
@@ -37,7 +47,10 @@ use Jovian\Bindings\Gtk\Gtk\GtkToggleButton as GtkToggleButtonWidget;
 use Jovian\Bindings\Gtk\Gtk\GtkVideo as GtkVideoWidget;
 use Jovian\Venusian\GTK\Views\GTKButton;
 use Jovian\Venusian\GTK\Views\GTKCheckbox;
+use Jovian\Venusian\GTK\Views\GTKDatePicker;
 use Jovian\Venusian\GTK\Views\GTKDropdown;
+use Jovian\Venusian\GTK\Views\GTKGLSurface;
+use Jovian\Venusian\GTK\Views\GTKGLView;
 use Jovian\Venusian\GTK\Views\GTKGroup;
 use Jovian\Venusian\GTK\Views\GTKImage;
 use Jovian\Venusian\GTK\Views\GTKLabel;
@@ -46,6 +59,7 @@ use Jovian\Venusian\GTK\Views\GTKScrollView;
 use Jovian\Venusian\GTK\Views\GTKSeparator;
 use Jovian\Venusian\GTK\Views\GTKSlider;
 use Jovian\Venusian\GTK\Views\GTKSpinner;
+use Jovian\Venusian\GTK\Views\GTKTable;
 use Jovian\Venusian\GTK\Views\GTKTextArea;
 use Jovian\Venusian\GTK\Views\GTKTextInput;
 use Jovian\Venusian\GTK\Views\GTKToggle;
@@ -56,7 +70,9 @@ use Surface\Contracts\NativeWindows\Views\OSGroup;
 use Surface\NativeWindows\Menus\MenuItemSpec;
 use Surface\NativeWindows\Views\Button;
 use Surface\NativeWindows\Views\Checkbox;
+use Surface\NativeWindows\Views\DatePicker;
 use Surface\NativeWindows\Views\Dropdown;
+use Surface\NativeWindows\Views\GPUView;
 use Surface\NativeWindows\Views\Group;
 use Surface\NativeWindows\Views\Image;
 use Surface\NativeWindows\Views\Label;
@@ -65,6 +81,7 @@ use Surface\NativeWindows\Views\ScrollView;
 use Surface\NativeWindows\Views\Separator;
 use Surface\NativeWindows\Views\Slider;
 use Surface\NativeWindows\Views\Spinner;
+use Surface\NativeWindows\Views\Table;
 use Surface\NativeWindows\Views\TextArea;
 use Surface\NativeWindows\Views\TextInput;
 use Surface\NativeWindows\Views\Toggle;
@@ -424,6 +441,41 @@ class GTKWindowDelegate extends Windowable implements LinuxOSWindow
     }
 
     /**
+     * A GtkCalendar; the GTKDatePicker translates 1-based months and
+     * wires day-selected itself.
+     */
+    protected function mintDatePicker(string $name, ?string $date, ?OSGroup $in): DatePicker
+    {
+        $fixed = $this->mintFixed($in);
+        $widget = GtkCalendarWidget::new();
+        $fixed->put($widget, 0.0, 0.0);
+
+        return new GTKDatePicker($name, $this, $date, $widget, $fixed);
+    }
+
+    /**
+     * A GtkColumnView over a string-list of row placeholders; the
+     * GTKTable owns the per-column factories and the selection.
+     *
+     * @param list<string> $columns
+     * @param list<list<string>> $rows
+     */
+    protected function mintTable(string $name, array $columns, array $rows, ?OSGroup $in): Table
+    {
+        $fixed = $this->mintFixed($in);
+        $placeholders = [];
+        foreach (array_keys(array_values($rows)) as $index) {
+            $placeholders[] = (string) $index;
+        }
+        $strings = GtkStringList::new($placeholders);
+        $selection = GtkSingleSelection::new($strings);
+        $view = GtkColumnView::new($selection);
+        $fixed->put($view, 0.0, 0.0);
+
+        return new GTKTable($name, $this, $columns, $rows, $view, $selection, $strings, $fixed);
+    }
+
+    /**
      * A GtkSeparator in the orientation the conjure-time aspect decided.
      */
     protected function mintSeparator(string $name, bool $horizontal, ?OSGroup $in): Separator
@@ -463,6 +515,42 @@ class GTKWindowDelegate extends Windowable implements LinuxOSWindow
         $fixed->put($scrolled, 0.0, 0.0);
 
         return new GTKScrollView($name, $this, $scrolled, $inner, $fixed);
+    }
+
+    /** GTK hosts a GL context and nothing else — a layer engine is refused by kind, no package named. */
+    public static function hostsSurfaceKind(SurfaceKind $kind): bool
+    {
+        return $kind === SurfaceKind::GL_CONTEXT;
+    }
+
+    /**
+     * A GtkGLArea that allows GL *and* GLES (a constraint, not a preference:
+     * narrowing to GL leaves the Pi with no context and no error), 3.0+, no
+     * auto-render (Surface decides when a frame happens), no depth. Order:
+     * native → surface → host → attach → twin.
+     *
+     * @throws GPUViewException When the engine wants a surface kind GTK cannot mint.
+     */
+    protected function mintGPU(string $name, GPUEngineDriver $driver, ?OSGroup $in): GPUView
+    {
+        if (! self::hostsSurfaceKind($driver->surfaceKind())) {
+            throw GPUViewException::unsupported($driver->engine()->value, 'gtk');
+        }
+
+        $area = GtkGLArea::new();
+        $area->setAllowedApis(GdkGLAPI::GL->value | GdkGLAPI::GLES->value)
+            ->setRequiredVersion(3, 0)
+            ->setAutoRender(false)
+            ->setHasDepthBuffer(false);
+
+        $fixed = $this->mintFixed($in);
+        $fixed->put($area, 0.0, 0.0);
+
+        $scale = (float) max(1, $area->getScaleFactor());
+        $gl = new GTKGLSurface($area);
+        $attachment = $driver->attach(new GPUHost(0, 0, 0, $scale, $gl));
+
+        return new GTKGLView($name, $this, $driver->engine(), $attachment->executor, $scale, $gl, $fixed);
     }
 
     /**

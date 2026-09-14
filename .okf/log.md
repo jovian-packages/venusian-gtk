@@ -1,5 +1,25 @@
 # jovian/venusian-gtk Update Log
 
+## 2026-09-13
+* **Creation**: [GTKGLView](/gpu-view.md) — slice 2 replaces the blanket `mintGPU()` refusal with a `GtkGLArea` host for `SurfaceKind::GL_CONTEXT`.
+
+## 2026-09-13 (GPU mint refuses)
+* **Update**: `GTKWindowDelegate::mintGPU()` throws
+  `GPUViewException::unsupported($engine, 'gtk')` for every engine.
+  Slice 1 ships no OpenGL / `GtkGLArea` engine; the honest refusal is the
+  Surface-level exception so a sketch catches one type without naming
+  GTK. Slice 2 replaces the `opengl` branch with a `GtkGLArea` twin.
+
+## 2026-09-12 (datePicker + table twins)
+* **Update**: `GTKDatePicker` over `GtkCalendar` (aliased
+  `GtkCalendarWidget`); `day-selected` behind `applying`; month is
+  0-based on the widget, 1-based on Surface. `GTKTable` over
+  `GtkColumnView` + per-column `GtkSignalListItemFactory` (`setup` →
+  `GtkLabel`, `bind` via `getPosition`); `GtkStringList` placeholders;
+  `GtkSingleSelection` autoselect off / can-unselect on;
+  `notify::selected` behind `applying`. `examples/smoke-widgets.php`
+  conjures both, writes through, reads native back.
+
 ## 2026-09-04 (visibility)
 * **Update**: `applyVisible(bool)` lands for Surface's new
   `setVisible/show/hide`: GtkWidget setVisible through TranslatesGtkFrames — one edit covered all sixteen twins. Hiding a container hides the subtree

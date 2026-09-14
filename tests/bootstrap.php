@@ -28,6 +28,39 @@ spl_autoload_register(function (string $class): void {
 });
 
 /*
+| The typed binding's DTO classes are plain PHP; only their method bodies
+| touch ext-gtk. Autoload them from the sibling checkout so ext-free fakes
+| can extend GtkGLArea / GtkFixed without a vendor tree here.
+*/
+spl_autoload_register(function (string $class): void {
+    $prefix = 'Jovian\\Bindings\\Gtk\\';
+
+    if (! str_starts_with($class, $prefix) || class_exists($class, false)) {
+        return;
+    }
+
+    $file = dirname(__DIR__, 2).'/gtk/src/'.str_replace('\\', '/', substr($class, strlen($prefix))).'.php';
+
+    if (is_file($file)) {
+        require $file;
+    }
+});
+
+spl_autoload_register(function (string $class): void {
+    $prefix = 'Venusian\\GTK\\Tests\\Support\\';
+
+    if (! str_starts_with($class, $prefix) || class_exists($class, false)) {
+        return;
+    }
+
+    $file = __DIR__.'/Support/'.str_replace('\\', '/', substr($class, strlen($prefix))).'.php';
+
+    if (is_file($file)) {
+        require $file;
+    }
+});
+
+/*
 | Ext-free doubles for the GLib signal helpers, so GtkSignals bookkeeping is
 | testable on a machine without ext-gtk. Real helpers win when present.
 */

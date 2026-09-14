@@ -9,8 +9,11 @@ This is where opinion is allowed: `jovian/gtk` may only project `ext-gtk`
 one call at a time, and Surface may not know GTK exists, so everything that
 bundles GTK calls into a policy lives here.
 
-The OS bridge session and bare `GtkWindow` provisioning exist so far.
-Widgets inside the window come next.
+The OS bridge session, bare `GtkWindow` provisioning, and the nineteen
+Surface view twins exist — including `GTKDatePicker` (`GtkCalendar`,
+month 0-based), `GTKTable` (`GtkColumnView` + factories), and
+`GTKGLView` / `GTKGLSurface` (`GtkGLArea` for `SurfaceKind::GL_CONTEXT`).
+`mintGPU()` refuses `LAYER` engines by kind.
 
 Read this index first. Every concept here is `status: draft` until a human
 verifies it.
@@ -20,6 +23,7 @@ verifies it.
 * [session.md](/session.md) - the GTK side of Surface's bridge lifecycle,
   why connecting and disconnecting are honest no-ops, and the `GtkWindow`
   factory with its scaffold child
+* [gpu-view.md](/gpu-view.md) - the GtkGLArea twin: self-driving frames, the context lender, refusal by kind
 
 # Related bundles
 
@@ -34,6 +38,6 @@ verifies it.
 |---|---|
 | Version | 0.8.0, PHP `^8.4\|^8.5\|^8.6`, Linux only |
 | Namespace | `Jovian\Venusian\GTK\` at `src/` |
-| Requires | `jovian/gtk`, `surface/bridge`, `surface/contracts`, `surface/native-windows`, `venusian-voyager/contracts` |
+| Requires | `jovian/gtk`, `surface/bridge`, `surface/contracts`, `surface/drawing`, `surface/native-windows`, `venusian-voyager/contracts` |
 | Container alias | binds `linux.bridge` |
 | Tests | `tests/Views` is orphaned from the torn-out drivers; scope runs around it |

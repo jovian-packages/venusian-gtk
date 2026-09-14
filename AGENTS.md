@@ -29,10 +29,8 @@ packages are shape-parallel by design and share no code.
 
 ## Current state
 
-The OS bridge session and bare `GtkWindow` provisioning exist. The 0.8 view
-drivers were written against an older, opinionated `ext-gtk` and were torn
-out; widgets inside the window come next. `tests/Views/**` is orphaned from
-the removed drivers; scope test runs around it.
+The OS bridge session, window provisioning, and nineteen Surface view twins exist (`GTKGLView` + `GTKGLSurface` host OpenGL through a `GtkGLArea`). `tests/Views/**`
+is orphaned from the torn-out 0.8 drivers; scope test runs around it.
 
 `GTKWindowDelegate` does **not** make the content root the window's child.
 It sets a vertical `GtkBox` scaffold holding a `GtkFixed` content, so a later
@@ -43,7 +41,7 @@ Do not flatten it. See [`.okf/session.md`](.okf/session.md).
 
 - Composer: `jovian/venusian-gtk` **0.8.0**. PHP `^8.4|^8.5|^8.6`. Linux
   only. Requires `jovian/gtk`, `surface/bridge`, `surface/contracts`,
-  `surface/native-windows`, `venusian-voyager/contracts`.
+  `surface/drawing`, `surface/native-windows`, `venusian-voyager/contracts`.
 - Namespace root is `Jovian\Venusian\GTK\` at `src/`. Note the binding
   package underneath is `Jovian\Bindings\Gtk\` — mixed case, not `GTK`.
 - **The provider binds `linux.bridge`.** That container alias is the entire
@@ -79,6 +77,19 @@ Do not flatten it. See [`.okf/session.md`](.okf/session.md).
   from `SomeEnum::CASE->value | ...`.
 - Enums are int- or string-backed with FULLY UPPERCASE cases. **No class
   constants anywhere.** Prefer `is_null($var)` over `$var === null`.
+- **A GL surface lends its context and never draws.** `GTKGLSurface` holds
+  the `GtkGLArea`; `makeCurrent()` is harmless inside `render` and is what
+  the engine's `release()` needs outside it; `present()` is a no-op — GTK
+  swaps when the signal returns. Never import `Jovian\Bindings\OpenGL` or
+  `Jovian\Venusian\OpenGL`.
+- **The GL twin drives its own frames.** `drivesOwnFrames()` is true: the
+  tick only `queueRender()`s and GTK's frame clock calls `handleRender()`,
+  so the draw hook runs **inside the pump**, like `onClick`. When Surface
+  skips, the twin still paints the clear colour — GTK shows the buffer.
+- **`setAllowedApis(GL | GLES)` is a constraint, not a preference.**
+  Narrowing to GL leaves the Pi with no context and no error.
+- **`mintGPU()` decides by `SurfaceKind`.** `GL_CONTEXT` is hosted; `LAYER`
+  is `GPUViewException::unsupported()`.
 
 ## Verification
 
@@ -86,6 +97,8 @@ Pure-logic code should be covered by Pest with no extension present.
 Anything that touches GTK runs on the Pi over the `fnk` zsh alias — sync
 `src tests composer.json phpunit.xml` first, never `vendor/`. Never inline
 the alias's credentials.
+
+`../../venusian/surface/vendor/bin/pest tests/GPU` runs the ext-free GL twin policy tests through Surface's Pest (see `tests/bootstrap.php`).
 
 An extension-gated test that skips is not evidence. The standing acceptance
 check for the bridge: boot, tick, clean exit, no `Gtk-CRITICAL` in the
