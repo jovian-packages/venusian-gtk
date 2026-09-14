@@ -13,7 +13,8 @@ The OS bridge session, bare `GtkWindow` provisioning, and the nineteen
 Surface view twins exist — including `GTKDatePicker` (`GtkCalendar`,
 month 0-based), `GTKTable` (`GtkColumnView` + factories), and
 `GTKGLView` / `GTKGLSurface` (`GtkGLArea` for `SurfaceKind::GL_CONTEXT`).
-`mintGPU()` refuses `LAYER` engines by kind.
+`mintGPU()` hosts only `GL_CONTEXT`; every other `SurfaceKind` is refused
+by kind.
 
 Read this index first. Every concept here is `status: draft` until a human
 verifies it.
@@ -23,7 +24,7 @@ verifies it.
 * [session.md](/session.md) - the GTK side of Surface's bridge lifecycle,
   why connecting and disconnecting are honest no-ops, and the `GtkWindow`
   factory with its scaffold child
-* [gpu-view.md](/gpu-view.md) - the GtkGLArea twin: self-driving frames, the context lender, refusal by kind
+* [gpu-view.md](/gpu-view.md) - the GtkGLArea twin: self-driving frames, the context lender, hosts only GL_CONTEXT
 
 # Related bundles
 

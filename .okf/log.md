@@ -1,5 +1,14 @@
 # jovian/venusian-gtk Update Log
 
+## 2026-09-14 (Stage, slice 4 — Surface side wording fix)
+* **Fix**: [index](/index.md) and [GTKGLView](/gpu-view.md) — corrected
+  the `mintGPU()` wording now that Surface's `SurfaceKind` has four cases
+  (`LAYER`, `GL_CONTEXT`, `VULKAN_SURFACE`, `HOST_WINDOW`), not two.
+  `hostsSurfaceKind()` only ever accepted `GL_CONTEXT`; the old phrasing
+  ("refuses `LAYER` engines by kind") undersold the refusal. Now: `mintGPU()`
+  hosts only `GL_CONTEXT` and refuses every other `SurfaceKind` by kind.
+  No code change.
+
 ## 2026-09-13
 * **Creation**: [GTKGLView](/gpu-view.md) — slice 2 replaces the blanket `mintGPU()` refusal with a `GtkGLArea` host for `SurfaceKind::GL_CONTEXT`.
 

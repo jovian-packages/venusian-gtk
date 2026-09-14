@@ -72,5 +72,7 @@ it('the surface answers pixels and lends the area', function () {
 
 it('GTK hosts GL contexts and refuses layers, by kind', function () {
     expect(GTKWindowDelegate::hostsSurfaceKind(SurfaceKind::GL_CONTEXT))->toBeTrue()
-        ->and(GTKWindowDelegate::hostsSurfaceKind(SurfaceKind::LAYER))->toBeFalse();
+        ->and(GTKWindowDelegate::hostsSurfaceKind(SurfaceKind::LAYER))->toBeFalse()
+        ->and(GTKWindowDelegate::hostsSurfaceKind(SurfaceKind::VULKAN_SURFACE))->toBeFalse()
+        ->and(GTKWindowDelegate::hostsSurfaceKind(SurfaceKind::HOST_WINDOW))->toBeFalse();
 });

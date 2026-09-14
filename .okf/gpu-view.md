@@ -1,7 +1,7 @@
 ---
 type: Component
 title: GTKGLView
-description: The GTK twin of Surface's GPUView over a GtkGLArea — self-driving frames inside the pump, a surface that lends the context, refusal of layer engines by kind.
+description: The GTK twin of Surface's GPUView over a GtkGLArea — self-driving frames inside the pump, a surface that lends the context, hosts only GL_CONTEXT and refuses every other SurfaceKind by kind.
 tags: [gtk, gpu, opengl, glarea, views]
 status: draft
 generated: { by: cursor-grok-4.6/cursor, at: "2026-09-14T02:30:00Z" }
