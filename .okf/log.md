@@ -1,5 +1,30 @@
 # jovian/venusian-gtk Update Log
 
+## 2026-09-17 (modifier keys)
+
+* **Update**: [GTKInputEngine](/input-engine.md) — the `modifiers` signal is pre-key on hardware; seen modifier keys decide their kind.
+
+## 2026-09-17
+* **Update**: [GTKInputEngine](/input-engine.md) — failures recorded for
+  `errors()` (and `log` when bound), never `trigger_error`; failing window
+  attach retried on the rescan cadence, recorded once per streak;
+  unreadable-nodes notice once per connect; `meta` = SUPER only; focus loss
+  via `notify::is-active` releases keys and mouse buttons; scroll unit read
+  in the handler, SURFACE ÷ 10; natural scroll not detectable on GTK 4.8;
+  coordinates window-widget based; pad lists hold connected pads only;
+  `NativeGtkWindowSpace` answers `[]` without `native-window`.
+* **Fix**: [GTKInputEngine](/input-engine.md) — focus-loss release keeps
+  release edges (per-key `update(false)`, modifiers cleared), not
+  `Keyboard::reset()`; a failing factory attach rolls back.
+* **Creation**: [GTKInputEngine](/input-engine.md) — `input.gtk`: key /
+  motion / click / scroll controllers per window, buffered callbacks,
+  `EvdevKeyMap` (keycode − 8), evdev gamepads on a rescan cadence.
+* **Update**: [index](/index.md) — concept listed; requires and aliases.
+* **Update**: [GTKInputEngine](/input-engine.md) — modifiers from the key
+  controller's `modifiers` signal, not key-event state; a removed pointer
+  window clears the window and releases buttons; attach / scan / open
+  failures warn and skip.
+
 ## 2026-09-14 (Stage, slice 4 — Surface side wording fix)
 * **Fix**: [index](/index.md) and [GTKGLView](/gpu-view.md) — corrected
   the `mintGPU()` wording now that Surface's `SurfaceKind` has four cases

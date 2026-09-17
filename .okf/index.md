@@ -25,6 +25,7 @@ verifies it.
   why connecting and disconnecting are honest no-ops, and the `GtkWindow`
   factory with its scaffold child
 * [gpu-view.md](/gpu-view.md) - the GtkGLArea twin: self-driving frames, the context lender, hosts only GL_CONTEXT
+* [input-engine.md](/input-engine.md) - `input.gtk`: per-window event controllers, buffered callbacks, keycode − 8, evdev gamepads
 
 # Related bundles
 
@@ -39,6 +40,6 @@ verifies it.
 |---|---|
 | Version | 0.8.0, PHP `^8.4\|^8.5\|^8.6`, Linux only |
 | Namespace | `Jovian\Venusian\GTK\` at `src/` |
-| Requires | `jovian/gtk`, `surface/bridge`, `surface/contracts`, `surface/drawing`, `surface/native-windows`, `venusian-voyager/contracts` |
-| Container alias | binds `linux.bridge` |
+| Requires | `jovian/gtk`, `microscrap/scrapyard-evdev`, `surface/bridge`, `surface/contracts`, `surface/drawing`, `surface/human-input`, `surface/native-windows`, `venusian-voyager/contracts` |
+| Container aliases | binds `linux.bridge`, `input.gtk` |
 | Tests | `tests/Views` is orphaned from the torn-out drivers; scope runs around it |

@@ -46,6 +46,30 @@ spl_autoload_register(function (string $class): void {
     }
 });
 
+/*
+| The evdev stack is plain PHP until a device is opened. Surface's own vendor
+| autoload (the Pest binary's) already covers `Surface\` and its test fakes.
+*/
+spl_autoload_register(function (string $class): void {
+    $roots = [
+        'Microscrap\\ScrapyardEvdev\\' => dirname(__DIR__, 3).'/microscrap/scrapyard-evdev/src/',
+        'Microscrap\\Bindings\\Evdev\\' => dirname(__DIR__, 3).'/microscrap/evdev/src/',
+        'Microscrap\\ScrapyardEvdev\\Tests\\Support\\' => dirname(__DIR__, 3).'/microscrap/scrapyard-evdev/tests/Support/',
+    ];
+
+    foreach ($roots as $prefix => $dir) {
+        if (! str_starts_with($class, $prefix) || class_exists($class, false)) {
+            continue;
+        }
+
+        $file = $dir.str_replace('\\', '/', substr($class, strlen($prefix))).'.php';
+
+        if (is_file($file)) {
+            require $file;
+        }
+    }
+});
+
 spl_autoload_register(function (string $class): void {
     $prefix = 'Venusian\\GTK\\Tests\\Support\\';
 

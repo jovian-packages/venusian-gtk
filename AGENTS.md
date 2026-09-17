@@ -40,13 +40,15 @@ Do not flatten it. See [`.okf/session.md`](.okf/session.md).
 ## Package rules (quick) — 0.8.x
 
 - Composer: `jovian/venusian-gtk` **0.8.0**. PHP `^8.4|^8.5|^8.6`. Linux
-  only. Requires `jovian/gtk`, `surface/bridge`, `surface/contracts`,
-  `surface/drawing`, `surface/native-windows`, `venusian-voyager/contracts`.
+  only. Requires `jovian/gtk`, `microscrap/scrapyard-evdev`, `surface/bridge`,
+  `surface/contracts`, `surface/drawing`, `surface/human-input`,
+  `surface/native-windows`, `venusian-voyager/contracts`.
 - Namespace root is `Jovian\Venusian\GTK\` at `src/`. Note the binding
   package underneath is `Jovian\Bindings\Gtk\` — mixed case, not `GTK`.
 - **The provider binds `linux.bridge`.** That container alias is the entire
   seam to Surface; installing this package is the whole of what makes Linux
-  windowing available. Do not rename it.
+  windowing available. Do not rename it. `input.gtk` is the input engine
+  (see [`.okf/input-engine.md`](.okf/input-engine.md)).
 - **Implement Surface's contracts, do not re-declare policy.** The abstract
   in `surface/bridge` owns guards, idempotency, and state. Fill the hooks.
 - **Exceptions subclass `Surface\Contracts\Bridge\BridgeException`** so a
@@ -98,7 +100,7 @@ Anything that touches GTK runs on the Pi over the `fnk` zsh alias — sync
 `src tests composer.json phpunit.xml` first, never `vendor/`. Never inline
 the alias's credentials.
 
-`../../venusian/surface/vendor/bin/pest tests/GPU` runs the ext-free GL twin policy tests through Surface's Pest (see `tests/bootstrap.php`).
+`../../venusian/surface/vendor/bin/pest tests/GPU tests/Input` runs the ext-free GL twin and input engine tests through Surface's Pest (see `tests/bootstrap.php`).
 
 An extension-gated test that skips is not evidence. The standing acceptance
 check for the bridge: boot, tick, clean exit, no `Gtk-CRITICAL` in the
