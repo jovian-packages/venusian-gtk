@@ -1,21 +1,21 @@
 {
     "name": "jovian/venusian-gtk",
-    "description": "Linux GTK4 support within Venusian PHP Framework",
+    "description": "GTK 4 toolkit driver for the Venusian Surface bridge: connects PHP to GtkApplication through ext-gtk.",
     "type": "library",
-    "version": "0.8.0",
     "keywords": [
         "framework",
         "venusian",
+        "surface",
+        "bridge",
+        "gtk",
         "gtk4",
-        "bindings",
-        "macos"
+        "linux"
     ],
     "license": "MIT",
-    "homepage": "https://venusian.projectsaturnstudios.com/ecosystem/jovian/appkit/0.8.x/overview",
+    "homepage": "https://venusian.projectsaturnstudios.com/ecosystem/jovian/venusian-gtk/0.10.x",
     "support": {
-        "docs": "https://venusian.projectsaturnstudios.com/ecosystem/jovian/appkit/0.8.x/overview",
-        "issues": "https://github.com/jovian/appkit/issues",
-        "source": "https://github.com/jovian/appkit"
+        "issues": "https://github.com/jovian-packages/venusian-gtk/issues",
+        "source": "https://github.com/jovian-packages/venusian-gtk"
     },
     "authors": [
         {
@@ -25,28 +25,22 @@
     ],
     "require": {
         "php": "^8.4|^8.5|^8.6",
-        "ext-mbstring": "*",
-        "jovian/gtk": "^0.8.0",
-        "microscrap/scrapyard-evdev": "^0.8.0",
-        "venusian-surface/bridge": "^0.8.0",
-        "venusian-surface/contracts": "^0.8.0",
-        "venusian-surface/drawing": "^0.8.0",
-        "venusian-surface/human-input": "^0.8.0",
-        "venusian-surface/native-windows": "^0.8.0",
-        "venusian-voyager/contracts": "^0.8.0"
+        "ext-gtk": "^0.10",
+        "venusian-surface/bridge": "^0.10.0",
+        "venusian-surface/contracts": "^0.10.0",
+        "venusian-voyager/nuts-and-bolts": "^0.10.1"
     },
     "require-dev": {
         "pestphp/pest": "^4"
     },
-
     "autoload": {
         "psr-4": {
-            "Jovian\\Venusian\\GTK\\": "src/"
+            "Jovian\\Toolkits\\GTK\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Venusian\\Tests\\": "tests/"
+            "Jovian\\Toolkits\\GTK\\Tests\\": "tests/"
         }
     },
     "config": {
@@ -57,15 +51,12 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.8.x-dev"
+            "dev-main": "0.10.x-dev"
         },
         "venusian": {
             "providers": [
-                "Jovian\\Venusian\\GTK\\Providers\\VenusianGTKServiceProvider"
-            ],
-            "aliases": {
-
-            }
+                "Jovian\\Toolkits\\GTK\\Providers\\VenusianGTKServiceProvider"
+            ]
         }
     },
     "minimum-stability": "dev",
