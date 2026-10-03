@@ -28,13 +28,22 @@ it('registers the application and holds it while connected', function (): void {
 });
 
 it('waits at most the budget when nothing arrives', function (): void {
-    session()->pump(0);
+    // Settle with real waits: right after connecting, D-Bus replies and compositor events are
+    // still in flight (on Wayland one lands ~10 ms in), and a non-blocking pump cannot drain them.
+    pumpFor(0.2);
 
-    $t = hrtime(true);
-    session()->pump(30_000_000);
-    $ms = (hrtime(true) - $t) / 1e6;
+    // A desktop in use can still deliver a foreign event (input, a system notification) that
+    // rightly ends one wait early. A pump that never sleeps fails every attempt; one that
+    // overshoots fails any.
+    $waits = [];
+    do {
+        $t = hrtime(true);
+        session()->pump(30_000_000);
+        $waits[] = (hrtime(true) - $t) / 1e6;
+    } while (max($waits) < 25.0 && count($waits) < 5);
 
-    expect($ms)->toBeGreaterThanOrEqual(25.0)->toBeLessThan(120.0);
+    expect(max($waits))->toBeGreaterThanOrEqual(25.0)
+        ->and(max($waits))->toBeLessThan(120.0);
 });
 
 it('joins a loop: the loop waiter ends the toolkit sleep the moment a watched stream turns readable', function (): void {
@@ -62,14 +71,20 @@ it('joins a loop: the loop waiter ends the toolkit sleep the moment a watched st
         $loop->until(function () use (&$checks): bool {
             return ++$checks > 2;
         });
-        $proc = proc_open([PHP_BINARY, '-n', '-r', 'usleep(100000); echo "x";'], [1 => $write], $pipes);
+        $proc = proc_open([PHP_BINARY, '-n', '-r', 'usleep(100000); echo hrtime(true);'], [1 => $write], $pipes);
 
-        $t = hrtime(true);
+        $started = hrtime(true);
         $session->pump(2_000_000_000);
-        $ms = (hrtime(true) - $t) / 1e6;
+        $returned = hrtime(true);
         proc_close($proc);
+        stream_set_blocking($read, false);
+        $written = (int) fread($read, 64);
 
-        expect($ms)->toBeGreaterThan(50.0)->toBeLessThan(500.0);
+        // hrtime is the system's monotonic clock in both processes: the wait outlasted the write
+        // and ended within 100 ms of it, however long the child took to start.
+        expect($written)->toBeGreaterThan($started)
+            ->and($returned)->toBeGreaterThanOrEqual($written)
+            ->and(($returned - $written) / 1e6)->toBeLessThan(100.0);
     } finally {
         $session->leaveLoop();
     }

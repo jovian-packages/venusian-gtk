@@ -22,7 +22,7 @@ it('opens a titled window under its name', function (): void {
         ->and($window->isOpen())->toBeTrue()
         ->and($window->native())->toBeInstanceOf(GtkApplicationWindow::class)
         ->and($window->native()->getDefaultSize())->toBe([480, 320])
-        ->and($window->content()->getParent()?->getParent())->toBe($window->native())
+        ->and($window->contentArea()->getParent()?->getParent())->toBe($window->native())
         ->and(session()->application()->getWindows())->toContain($window->native())
         ->and(driver()->get('main'))->toBe($window)
         ->and(driver()->all())->toBe(['main' => $window]);
@@ -38,8 +38,8 @@ it('refuses a second window under the same name', function (): void {
 });
 
 it('posts WindowFocused when presented and active', function (): void {
-    driver()->open('main', 320, 200)->present();
-    pumpFor(0.5);
+    $window = driver()->open('main', 320, 200)->present();
+    requireActive($window);
 
     expect(takeMail(session()))->toContainEqual(new WindowFocused('main'));
 });

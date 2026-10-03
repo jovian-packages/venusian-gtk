@@ -11,6 +11,10 @@ use GtkWindow;
 use NSApplication;
 use Surface\Bridge\BridgedToolkitSession;
 use Surface\Contracts\Bridge\BridgeException;
+use Jovian\Toolkits\GTK\Windows\GTKWindow as DriverWindow;
+use Surface\Contracts\Windows\Mail\View\ViewResized;
+use Surface\Contracts\Windows\Mail\WindowResized;
+use Surface\Contracts\Windows\Primitives\TKPrimitive;
 
 class GTKSession extends BridgedToolkitSession
 {
@@ -41,6 +45,21 @@ class GTKSession extends BridgedToolkitSession
      * @var GtkAboutDialog|null
      */
     protected ?GtkAboutDialog $about_dialog = null;
+
+    /**
+     * Primitives reporting their size, by uuid, with the size last reported. GTK has no
+     * per-widget resize signal, so each pump compares allocations after it dispatches.
+     * @var array<string, array{TKPrimitive, array{int, int}}>
+     */
+    protected array $watched = [];
+
+    /**
+     * Open windows by name, with the content-area size last reported. Polled like watched
+     * primitives, so every change of the area counts: the window's own resize, and an
+     * in-window menu bar arriving or going.
+     * @var array<string, array{DriverWindow, array{int, int}}>
+     */
+    protected array $windows = [];
 
     /**
      * @param string $application_id the desktop identity: Wayland's app_id, the bus name when unique
@@ -125,7 +144,98 @@ class GTKSession extends BridgedToolkitSession
             }
         }
 
+        $this->checkWatched();
+
         return $dispatched;
+    }
+
+    /**
+     * Report $primitive's allocation from now on, whenever a pump finds it changed.
+     *
+     * @param TKPrimitive $primitive
+     * @return void
+     */
+    public function watch(TKPrimitive $primitive): void
+    {
+        $this->watched[$primitive->uuid()] = [$primitive, $primitive->size()];
+    }
+
+    /**
+     * Stop reporting $primitive's size and drop a report still pending for it.
+     *
+     * @param TKPrimitive $primitive
+     * @return void
+     */
+    public function unwatch(TKPrimitive $primitive): void
+    {
+        unset($this->watched[$primitive->uuid()]);
+        $this->forgetLatest(self::viewResizedKey($primitive));
+    }
+
+    /**
+     * Report $window's content-area size from now on. A size with a zero side (not yet
+     * allocated) is recorded without a report, so the first allocation is not a resize.
+     *
+     * @param DriverWindow $window
+     * @return void
+     */
+    public function watchWindow(DriverWindow $window): void
+    {
+        $this->windows[$window->name()] = [$window, [0, 0]];
+    }
+
+    /**
+     * Stop reporting $window's size and drop a report still pending for it.
+     *
+     * @param DriverWindow $window
+     * @return void
+     */
+    public function unwatchWindow(DriverWindow $window): void
+    {
+        unset($this->windows[$window->name()]);
+        $this->forgetLatest("window.resized.{$window->name()}");
+    }
+
+    /**
+     * Post WindowResized and ViewResized, latest-only, for each window and watched primitive
+     * whose allocation changed.
+     * @return void
+     */
+    protected function checkWatched(): void
+    {
+        foreach ($this->windows as $name => [$window, $last]) {
+            $size = $window->size();
+            if ($size === $last) {
+                continue;
+            }
+            $this->windows[$name][1] = $size;
+            if (in_array(0, $last, true) || in_array(0, $size, true)) {
+                continue;
+            }
+            $this->postLatest("window.resized.{$name}", new WindowResized($name, $size[0], $size[1]));
+        }
+
+        foreach ($this->watched as $uuid => [$primitive, $last]) {
+            $size = $primitive->size();
+            if ($size === $last) {
+                continue;
+            }
+            $this->watched[$uuid][1] = $size;
+            $this->postLatest(self::viewResizedKey($primitive), new ViewResized(
+                $primitive->window()->name(), $primitive->path(), $uuid, $size[0], $size[1],
+            ));
+        }
+    }
+
+    /**
+     * Keyed by uuid: "<window>.<path>" would collide across windows whose names hold dots.
+     *
+     * @param TKPrimitive $primitive
+     * @return string
+     */
+    protected static function viewResizedKey(TKPrimitive $primitive): string
+    {
+        return "view.resized.{$primitive->uuid()}";
     }
 
     /**

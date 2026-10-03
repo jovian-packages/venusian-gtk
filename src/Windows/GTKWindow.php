@@ -8,14 +8,22 @@ use GtkOrientation;
 use GtkWidget;
 use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
 use Jovian\Toolkits\GTK\Bridge\GTKSession;
+use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
+use Jovian\Toolkits\GTK\Primitives\GTKPrimitiveFactory;
 use Surface\Contracts\Windows\Mail\WindowClosed;
 use Surface\Contracts\Windows\Mail\WindowFocused;
+use Surface\Contracts\Windows\Primitives\TKPrimitiveGroup;
 use Surface\Contracts\Windows\ToolkitWindow;
 use Surface\Contracts\Windows\WindowException;
 use Surface\Windows\Menus\MenuProfile;
+use Surface\Windows\Primitives\HostsPrimitives;
 
 class GTKWindow implements ToolkitWindow
 {
+    use HostsPrimitives;
+
+    protected ?GTKPrimitiveFactory $factory = null;
+
     /**
      * The native window while open; null once closed.
      * @var GtkApplicationWindow|null
@@ -68,6 +76,7 @@ class GTKWindow implements ToolkitWindow
             return false;
         });
         g_signal_connect($this->window, 'notify::is-active', fn () => $this->activeChanged());
+        $session->watchWindow($this);
 
         if (! is_null($menu)) {
             $this->useMenu(new GTKMenuBar($session, $menu, $name, $driver->about(), $this->window));
@@ -165,12 +174,67 @@ class GTKWindow implements ToolkitWindow
     }
 
     /**
-     * The area below the menu bar, where views go.
+     * The area below the menu bar, where the content container goes.
      * @return GtkBox
      */
-    public function content(): GtkBox
+    public function contentArea(): GtkBox
     {
         return $this->content;
+    }
+
+    /**
+     * The session, for the primitives this window hosts.
+     * @return GTKSession
+     */
+    public function session(): GTKSession
+    {
+        return $this->session;
+    }
+
+    public function factory(): GTKPrimitiveFactory
+    {
+        return $this->factory ??= new GTKPrimitiveFactory($this);
+    }
+
+    /**
+     * The content area's allocation: the window below its menu bar.
+     * @return array{int, int}
+     * @throws WindowException Once closed.
+     */
+    public function size(): array
+    {
+        $this->live();
+
+        return [$this->content->getWidth(), $this->content->getHeight()];
+    }
+
+    /**
+     * Take the content container's widget out of the content area. Called from its removal.
+     *
+     * @param GtkWidget $native
+     * @return void
+     */
+    public function unmountContent(GtkWidget $native): void
+    {
+        $this->content->remove($native);
+    }
+
+    /**
+     * The content container fills the content area.
+     *
+     * @param TKPrimitiveGroup $content
+     * @return void
+     * @throws WindowException When the content is not a GTK primitive.
+     */
+    protected function mountContent(TKPrimitiveGroup $content): void
+    {
+        if (! $content instanceof GTKView) {
+            throw new WindowException("'{$content->path()}' is a ".get_debug_type($content).', not a GTK primitive.');
+        }
+        $native = $content->native();
+        $native->setHexpand(true);
+        $native->setVexpand(true);
+        $this->content->append($native);
     }
 
     public function menuBar(): ?GTKMenuBar
@@ -225,7 +289,8 @@ class GTKWindow implements ToolkitWindow
     }
 
     /**
-     * The one close path: the native window is going, post it, let the driver forget it.
+     * The one close path, while the native window still lives: remove the primitive tree,
+     * drop a pending resize, post WindowClosed, let the driver forget the window.
      * @return void
      */
     protected function closed(): void
@@ -234,6 +299,8 @@ class GTKWindow implements ToolkitWindow
             return;
         }
 
+        $this->removeContent();
+        $this->session->unwatchWindow($this);
         $this->window = null;
         $this->session->post(new WindowClosed($this->name));
         $this->driver->forget($this->name);

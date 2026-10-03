@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
 use Jovian\Toolkits\GTK\Bridge\GTKSession;
+use Jovian\Toolkits\GTK\Windows\GTKWindow;
 use Surface\Bridge\ToolkitManager;
+use Surface\Bridge\ToolkitPump;
+use Surface\Contracts\Windows\Mail\View\PrimitiveMail;
 use Surface\Windows\ToolkitWindowManager;
 use Voyager\Config\Repository;
 use Voyager\Vessel\ControlPanel;
@@ -73,11 +76,49 @@ function takeMail(GTKSession $session): array
     })->call($session);
 }
 
-/** Pump GTK for $seconds. */
+/**
+ * Pump until $done() holds or $seconds pass, and say whether it held. For waits on the OS:
+ * the first window a process presents on macOS takes ~200-300 ms to become active.
+ */
+function pumpUntil(Closure $done, float $seconds = 3.0): bool
+{
+    $pump = new ToolkitPump(session());
+    $until = microtime(true) + $seconds;
+    while (! $done() && microtime(true) < $until) {
+        $pump->sleep(10_000_000);
+    }
+
+    return $done();
+}
+
+/**
+ * Wait for $window to become active. macOS activation is cooperative (macOS 14+): while the
+ * user works in another app the system may decline it, and no API forces it, so there a test
+ * that needs an active window is skipped with that reason. Elsewhere activation is required.
+ */
+function requireActive(GTKWindow $window): void
+{
+    if (pumpUntil(fn (): bool => $window->isActive())) {
+        return;
+    }
+    if (PHP_OS_FAMILY === 'Darwin') {
+        test()->markTestSkipped('macOS declined to activate the app: another app holds focus (cooperative activation).');
+    }
+    throw new RuntimeException("Window '{$window->name()}' did not become active.");
+}
+
+/** The primitives' own mail the session is holding, taken out; window and menu mail is dropped. */
+function viewMail(GTKSession $session): array
+{
+    return array_values(array_filter(takeMail($session), fn (object $mail): bool => $mail instanceof PrimitiveMail));
+}
+
+/** Pump GTK for $seconds through the loop's own sleeper, which flushes latest-only mail after each pump. */
 function pumpFor(float $seconds): void
 {
+    $pump = new ToolkitPump(session());
     $until = microtime(true) + $seconds;
     while (microtime(true) < $until) {
-        session()->pump(10_000_000);
+        $pump->sleep(10_000_000);
     }
 }

@@ -5,7 +5,7 @@ description: GtkApplication session - register once, hold while connected, budge
 resource: src/Bridge/GTKSession.php
 tags: [gtk, bridge, linux, macos]
 status: draft
-generated: { by: claude-opus/5.5, at: 2026-10-01T20:06:29Z }
+generated: { by: claude-opus/5.5, at: 2026-10-02T23:05:31Z }
 sources:
   - id: session
     resource: src/Bridge/GTKSession.php
@@ -23,7 +23,7 @@ sources:
 | disconnect | `release()` |
 | `pump($ns)` | budget > 0: `g_timeout_add(ceil ms)` + one blocking `iteration(true)`, remove the timeout if it did not fire; then up to `DRAIN_LIMIT` (64) non-blocking iterations while `pending()` |
 
-The drain limit keeps an always-ready source (idle re-adding itself) from holding a pump.
+The drain limit keeps an always-ready source (idle re-adding itself) from holding a pump. After the drain, `checkWatched()` reports window content areas and watched [primitive](/architecture/primitives.md) sizes that changed.
 
 # Wake
 

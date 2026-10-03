@@ -5,7 +5,8 @@ okf_version: "0.2"
 # jovian/venusian-gtk
 
 * [Session](architecture/session.md) - GtkApplication session: register once, hold while connected, budgeted context pump, one-shot fd wake, macOS activation.
-* [Windows and menus](architecture/windows-and-menus.md) - GtkApplicationWindow per name, close/focus mail, GMenu bars in-window (Linux) or app-wide (macOS), About.
+* [Windows and menus](architecture/windows-and-menus.md) - GtkApplicationWindow per name, close/focus/resize mail, GMenu bars in-window (Linux) or app-wide (macOS), About.
+* [Primitives](architecture/primitives.md) - GTK concretes of Surface's TK primitives - factory, containers, leaves, CSS-per-primitive styling, border-box sizes, watched allocations, mail rules.
 
 # API
 

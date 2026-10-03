@@ -39,13 +39,13 @@ it('builds the profile into a model with sections, actions and accelerators', fu
 
 it('puts the bar where the OS keeps menus', function (): void {
     $window = driver()->open('main', 320, 200, driver()->profile('main'))->present();
-    pumpFor(0.3);
+    requireActive($window);
 
     if (GTKBridgeDriver::appWideBar()) {
         expect(session()->application()->getMenubar())->toBe($window->menuBar()->model())
             ->and($window->native()->getShowMenubar())->toBeTrue();
     } else {
-        expect($window->content()->getParent()->getParent())->toBe($window->native());
+        expect($window->contentArea()->getParent()->getParent())->toBe($window->native());
     }
 });
 
@@ -165,14 +165,14 @@ it('shows the default bar on macOS while a window without a bar is active', func
     $app = session()->application();
 
     $tools = driver()->open('tools', 320, 200, driver()->profile('tools'))->present();
-    pumpFor(0.3);
+    requireActive($tools);
 
     expect($tools->isActive())->toBeTrue()
         ->and($app->getMenubar())->toBe($tools->menuBar()->model())
         ->and($app->getAccelsForAction('app.app.quit'))->toBe([]);
 
     $plain = driver()->open('plain', 320, 200)->present();
-    pumpFor(0.3);
+    requireActive($plain);
 
     expect($plain->isActive())->toBeTrue()
         ->and($app->getMenubar())->toBe(driver()->defaultMenuBar()->model())

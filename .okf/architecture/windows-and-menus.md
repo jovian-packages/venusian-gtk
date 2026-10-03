@@ -5,7 +5,7 @@ description: GtkApplicationWindow per name, close/focus mail, GMenu bars in-wind
 resource: src/Windows/
 tags: [gtk, windows, menus]
 status: draft
-generated: { by: claude-opus/5.5, at: 2026-10-01T20:06:29Z }
+generated: { by: claude-opus/5.5, at: 2026-10-02T23:05:31Z }
 sources:
   - id: window
     resource: src/Windows/GTKWindow.php
@@ -20,9 +20,10 @@ sources:
 
 # Window
 
-`GTKWindow implements ToolkitWindow`. `GtkApplicationWindow` of the session's application; title = name; default size. Child = vertical scaffold box: bar (Linux) above a content box expanding both ways (`content()`, where views go).[^window]
+`GTKWindow implements ToolkitWindow`. `GtkApplicationWindow` of the session's application; title = name; default size. Child = vertical scaffold box: bar (Linux) above a content area expanding both ways (`contentArea()`), which holds the [primitive](/architecture/primitives.md) content container (`content()`).[^window]
 
-* `close-request` → post `WindowClosed`, driver forgets, return `false` (GTK destroys).
+* `close-request` → remove the primitive tree, drop a pending resize, post `WindowClosed`, driver forgets, return `false` (GTK destroys).
+* Content-area size polled by the session after each pump → `WindowResized` (latest per pump) on change, including an in-window bar arriving or going.
 * `close()`: realized window → `GtkWindow::close()` (close-request runs inside). Never-realized window → GTK skips close-request, so the close path runs here and the window is destroyed.
 * `notify::is-active` → active: macOS bar switch, post `WindowFocused`; inactive: driver shows the default bar.
 * `present()` → `present()` + session `bringForward()`.
