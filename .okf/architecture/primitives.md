@@ -5,7 +5,7 @@ description: GTK concretes of Surface's TK primitives - factory, containers, lea
 resource: src/Primitives/
 tags: [gtk, primitives, layout, mail]
 status: draft
-generated: { by: claude-opus/5.5, at: 2026-10-02T23:05:31Z }
+generated: { by: claude-opus/5.5, at: 2026-10-04T03:09:21Z }
 sources:
   - id: trait
     resource: src/Primitives/Concerns/GTKPrimitive.php
@@ -61,6 +61,7 @@ Mail rules: interaction mail only through `post()` = not echoing a code write (`
 | label | `GtkLabel`; alignment = xalign 0/0.5/1 + justify | - |
 | button | `GtkButton` | `clicked` → ButtonClicked |
 | image | `GtkPicture`; FIT=CONTAIN, FILL=COVER, CENTER=SCALE_DOWN, STRETCH=FILL | refuses missing, unreadable, or nothing-to-show files before any change (4.18 loads nothing from non-images; 4.24 shows unknown files as `GtkSvg`; a corrupt known format loads nothing on both) |
+| canvas | `GtkPicture`, content fit FILL, can_shrink on so the layout sizes it. `present()` → `GdkMemoryTexture` in `R8G8B8X8` (alpha ignored) → `set_paintable`. Scale = `gtk_widget_get_scale_factor`. Needs GTK 4.14; older throws at mint. |
 | separator | `GtkSeparator` H / V | - |
 | spinner | `GtkSpinner` | - |
 | progress bar | `GtkProgressBar`; null fraction pulses from a 100 ms GLib timeout, removed on a fraction or removal | - |

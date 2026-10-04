@@ -7,6 +7,7 @@ use Jovian\Toolkits\GTK\Windows\GTKWindow;
 use Surface\Contracts\Windows\Primitives\Placement;
 use Surface\Contracts\Windows\Primitives\PrimitiveFactory;
 use Surface\Contracts\Windows\Primitives\TKButton;
+use Surface\Contracts\Windows\Primitives\TKCanvas;
 use Surface\Contracts\Windows\Primitives\TKCheckbox;
 use Surface\Contracts\Windows\Primitives\TKColumn;
 use Surface\Contracts\Windows\Primitives\TKDatepicker;
@@ -55,6 +56,11 @@ class GTKPrimitiveFactory implements PrimitiveFactory
     public function mintImage(GroupContract $host, string $name, ?string $file): TKImage
     {
         return new GTKImage($name, $this->window, self::parent($host), self::placement($host), $file);
+    }
+
+    public function mintCanvas(GroupContract $host, string $name): TKCanvas
+    {
+        return new GTKCanvas($name, $this->window, self::parent($host), self::placement($host));
     }
 
     public function mintSeparator(GroupContract $host, string $name, bool $horizontal): TKSeparator
