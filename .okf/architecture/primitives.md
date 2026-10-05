@@ -5,7 +5,7 @@ description: GTK concretes of Surface's TK primitives - factory, containers, lea
 resource: src/Primitives/
 tags: [gtk, primitives, layout, mail]
 status: draft
-generated: { by: claude-opus/5.5, at: 2026-10-04T03:09:21Z }
+generated: { by: grok/4.7, at: 2026-10-05T01:30:00Z }
 sources:
   - id: trait
     resource: src/Primitives/Concerns/GTKPrimitive.php
@@ -61,7 +61,7 @@ Mail rules: interaction mail only through `post()` = not echoing a code write (`
 | label | `GtkLabel`; alignment = xalign 0/0.5/1 + justify | - |
 | button | `GtkButton` | `clicked` → ButtonClicked |
 | image | `GtkPicture`; FIT=CONTAIN, FILL=COVER, CENTER=SCALE_DOWN, STRETCH=FILL | refuses missing, unreadable, or nothing-to-show files before any change (4.18 loads nothing from non-images; 4.24 shows unknown files as `GtkSvg`; a corrupt known format loads nothing on both) |
-| canvas | `GtkPicture`, content fit FILL, can_shrink on so the layout sizes it. `present()` → `GdkMemoryTexture` in `R8G8B8X8` (alpha ignored) → `set_paintable`. Scale = `gtk_widget_get_scale_factor`. Needs GTK 4.14; older throws at mint. |
+| canvas | `GtkPicture`, content fit FILL, can_shrink on so the layout sizes it. `present()` → `GdkMemoryTexture` in `R8G8B8X8` (alpha ignored) → `set_paintable`. An ext-fb framebuffer is piped: the texture is copied by address, and on GTK 4.16 or newer the texture after the first is built with `GdkMemoryTextureBuilder` and an update region, so only the damage is read. Scale = `gtk_widget_get_scale_factor`. Needs GTK 4.14; older throws at mint. |
 | separator | `GtkSeparator` H / V | - |
 | spinner | `GtkSpinner` | - |
 | progress bar | `GtkProgressBar`; null fraction pulses from a 100 ms GLib timeout, removed on a fraction or removal | - |

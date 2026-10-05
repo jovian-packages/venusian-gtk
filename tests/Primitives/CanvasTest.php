@@ -94,3 +94,28 @@ it('takes a framebuffer before the window is shown when given a size, and goes w
     expect(fn () => $canvas->present())->toThrow(WindowException::class, 'was removed')
         ->and($window->view('m.view'))->toBeNull();
 });
+
+it('pipes an ext-fb framebuffer to the picture by address, updating its texture', function (): void {
+    $window = driver()->open('main', 300, 200);
+    $canvas = $window->column('m')->canvas('view')->fill();
+    $window->present();
+    pumpUntil(fn (): bool => $canvas->size()[1] > 0, 3.0);
+
+    $buffer = $canvas->framebuffer('dirty', driver: 'extended');
+    $buffer->fill(0xFF6600FF);
+    $canvas->present();
+    pumpFor(0.05);
+
+    $shown = $canvas->native()->getPaintable();
+    expect($buffer->pointer())->not->toBe(0)
+        ->and($shown)->toBeInstanceOf(\GdkMemoryTexture::class)
+        ->and([$shown->getWidth(), $shown->getHeight()])->toBe([$buffer->viewportWidth(), $buffer->viewportHeight()]);
+
+    $buffer->setPixel(5, 5, 0x000000FF);
+    $canvas->present();
+    pumpFor(0.05);
+
+    $next = $canvas->native()->getPaintable();
+    expect($next)->toBeInstanceOf(\GdkMemoryTexture::class)->not->toBe($shown)
+        ->and([$next->getWidth(), $next->getHeight()])->toBe([$buffer->viewportWidth(), $buffer->viewportHeight()]);
+})->skip(! class_exists(FbBuffer::class), 'ext-fb is not loaded in this PHP.');
