@@ -29,13 +29,14 @@ it('lays a canvas out like any view and measures it in device pixels', function 
     $scale = $canvas->native()->getScaleFactor();
 
     expect($canvas)->toBeInstanceOf(GTKCanvas::class)
-        ->and($canvas->native())->toBeInstanceOf(\GtkPicture::class)
+        ->and($canvas->native())->toBeInstanceOf(\GtkBox::class)
+        ->and($canvas->picture())->toBeInstanceOf(\GtkPicture::class)
         ->and($width)->toBeGreaterThanOrEqual(300)
         ->and($height)->toBeGreaterThan(100)
         ->and($canvas->pixelSize())->toBe([$width * $scale, $height * $scale])
-        ->and($canvas->native()->getPaintable())->toBeNull()
-        ->and($canvas->native()->getContentFit())->toBe(\GtkContentFit::FILL)
-        ->and($canvas->native()->getCanShrink())->toBeTrue();
+        ->and($canvas->picture()->getPaintable())->toBeNull()
+        ->and($canvas->picture()->getContentFit())->toBe(\GtkContentFit::FILL)
+        ->and($canvas->picture()->getCanShrink())->toBeTrue();
 });
 
 it('shows its framebuffer as the picture\'s texture, only when something was drawn', function (): void {
@@ -49,16 +50,16 @@ it('shows its framebuffer as the picture\'s texture, only when something was dra
     $canvas->present();
     pumpFor(0.05);
 
-    $shown = $canvas->native()->getPaintable();
+    $shown = $canvas->picture()->getPaintable();
     expect($shown)->toBeInstanceOf(\GdkMemoryTexture::class)
         ->and([$shown->getWidth(), $shown->getHeight()])->toBe($canvas->pixelSize());
 
     $canvas->present();                                             // nothing drawn since: the same texture stays up
-    expect($canvas->native()->getPaintable())->toBe($shown);
+    expect($canvas->picture()->getPaintable())->toBe($shown);
 
     $buffer->setSegment(10, 10, 20, 20, 0x000000FF);
     $canvas->present();
-    expect($canvas->native()->getPaintable())->toBeInstanceOf(\GdkMemoryTexture::class)->not->toBe($shown);
+    expect($canvas->picture()->getPaintable())->toBeInstanceOf(\GdkMemoryTexture::class)->not->toBe($shown);
 });
 
 it('stretches a framebuffer of another size over the view, without the view taking its size', function (): void {
@@ -71,13 +72,13 @@ it('stretches a framebuffer of another size over the view, without the view taki
     $canvas->framebuffer('full', 32, 24)->fill(0x3366CCFF);
     $canvas->present();
     pumpFor(0.1);
-    expect($canvas->native()->getPaintable()->getWidth())->toBe(32)
+    expect($canvas->picture()->getPaintable()->getWidth())->toBe(32)
         ->and($canvas->size())->toBe($laid_out);
 
     $canvas->framebuffer('full', 1200, 900)->fill(0x3366CCFF);       // larger than the window: the layout still decides
     $canvas->present();
     pumpFor(0.1);
-    expect($canvas->native()->getPaintable()->getWidth())->toBe(1200)
+    expect($canvas->picture()->getPaintable()->getWidth())->toBe(1200)
         ->and($canvas->size())->toBe($laid_out);
 });
 
@@ -88,7 +89,7 @@ it('takes a framebuffer before the window is shown when given a size, and goes w
     $canvas->boundFramebuffer()->present();
     $canvas->present();
 
-    expect($canvas->native()->getPaintable()->getWidth())->toBe(16);
+    expect($canvas->picture()->getPaintable()->getWidth())->toBe(16);
 
     $canvas->remove();
     expect(fn () => $canvas->present())->toThrow(WindowException::class, 'was removed')
@@ -106,7 +107,7 @@ it('pipes an ext-fb framebuffer to the picture by address, updating its texture'
     $canvas->present();
     pumpFor(0.05);
 
-    $shown = $canvas->native()->getPaintable();
+    $shown = $canvas->picture()->getPaintable();
     expect($buffer->pointer())->not->toBe(0)
         ->and($shown)->toBeInstanceOf(\GdkMemoryTexture::class)
         ->and([$shown->getWidth(), $shown->getHeight()])->toBe([$buffer->viewportWidth(), $buffer->viewportHeight()]);
@@ -115,7 +116,7 @@ it('pipes an ext-fb framebuffer to the picture by address, updating its texture'
     $canvas->present();
     pumpFor(0.05);
 
-    $next = $canvas->native()->getPaintable();
+    $next = $canvas->picture()->getPaintable();
     expect($next)->toBeInstanceOf(\GdkMemoryTexture::class)->not->toBe($shown)
         ->and([$next->getWidth(), $next->getHeight()])->toBe([$buffer->viewportWidth(), $buffer->viewportHeight()]);
 })->skip(! class_exists(FbBuffer::class), 'ext-fb is not loaded in this PHP.');

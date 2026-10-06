@@ -32,12 +32,15 @@
         "venusian-voyager/nuts-and-bolts": "^0.10.1"
     },
     "require-dev": {
+        "jovian/venusian-opengl": "^0.10.0",
         "pestphp/pest": "^4",
+        "venusian-surface/drawing": "^0.10.0",
         "venusian-voyager/config": "^0.10.1",
         "venusian-voyager/vessel": "^0.10.1"
     },
     "suggest": {
-        "ext-appkit": "Required on macOS: GTK runs on NSApplication there and only AppKit can bring the process forward when a window is presented."
+        "ext-appkit": "Required on macOS: GTK runs on NSApplication there and only AppKit can bring the process forward when a window is presented.",
+        "ext-opengl": "A canvas lends its GtkGLArea's context to the 'opengl' rendering engine (jovian/venusian-opengl) when ext-opengl is loaded."
     },
     "autoload": {
         "psr-4": {
