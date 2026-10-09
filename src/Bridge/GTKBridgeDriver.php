@@ -6,6 +6,7 @@ use Jovian\Toolkits\GTK\Contracts\Bridge\GTKBridgeDriver as BridgeContract;
 use Jovian\Toolkits\GTK\Windows\GTKMenuBar;
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
 use Surface\Bridge\ToolkitBridgeDriver;
+use Surface\Contracts\Bridge\BridgeException;
 use Surface\Contracts\Windows\Menus\MenuProfile as MenuProfileContract;
 use Surface\Contracts\Windows\ToolkitWindowDriver;
 use Surface\Contracts\Windows\WindowException;
@@ -30,11 +31,23 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
     public function connect(): GTKSession
     {
         $this->session ??= new GTKSession(
-            (string) $this->app->get('config')->get('bridge.gtk.application_id', 'org.venusian.Surface'),
+            $this->applicationId(),
             (bool) $this->app->get('config')->get('bridge.gtk.unique', false),
         );
 
         return $this->session->connect();
+    }
+
+    /** The desktop identity: config/app.php app.id, the name a packaged build's .desktop file carries. */
+    protected function applicationId(): string
+    {
+        $id = $this->app->get('config')->get('app.id');
+
+        if (! is_string($id) || $id === '') {
+            throw new BridgeException("config/app.php has no app.id; add 'id' => env('APP_ID', 'com.venusian.app') under name.");
+        }
+
+        return $id;
     }
 
     public function open(string $name, int $width, int $height, ?MenuProfileContract $menu = null): GTKWindow

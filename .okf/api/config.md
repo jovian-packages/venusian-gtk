@@ -14,6 +14,6 @@ Read through the container's `config`; absent from Surface's published `config/b
 
 | Key | Default | Meaning |
 |---|---|---|
-| `bridge.gtk.application_id` | `org.venusian.Surface` | desktop identity: Wayland app_id, bus name when unique |
+| `app.id` | none: connect throws without it | desktop identity: Wayland app_id, bus name when unique; a packaged build names its `.desktop` file after it |
 | `bridge.gtk.unique` | `false` | `true` = one primary instance per id (a second process becomes remote) |
 | `windows.about.*` | Surface config | About dialog fields |

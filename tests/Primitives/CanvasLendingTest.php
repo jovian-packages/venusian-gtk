@@ -83,7 +83,7 @@ function glCanvas(int $width = 300, int $height = 200): array
 it('lends a GL context when ext-opengl is loaded', function (): void {
     [$window, $canvas] = glCanvas();
 
-    expect($canvas->surfaces())->toBe([SurfaceKind::GL_CONTEXT]);
+    expect($canvas->surfaces())->toBe([SurfaceKind::GL_CONTEXT, ...gtkDmabufKinds()]);
 
     $surface = $canvas->lend(SurfaceKind::GL_CONTEXT, new ContextBorrower);
     pumpFor(0.1);
@@ -110,7 +110,7 @@ it('lends nothing a device it cannot host, naming what it can', function (): voi
     [$window, $canvas] = glCanvas();
 
     $canvas->lend(SurfaceKind::METAL_LAYER, new ContextBorrower);
-})->throws(WindowException::class, 'lends no metal-layer surface (it lends: gl-context).');
+})->throws(WindowException::class, 'lends no metal-layer surface (it lends: '.gtkLends().').');
 
 it('shows opengl frames in the window with no pixel through PHP', function (): void {
     [$window, $canvas] = glCanvas(320, 240);
@@ -192,7 +192,7 @@ it('shows its framebuffer again after a reclaim', function (): void {
     expect($surface->released())->toBeTrue()
         ->and($canvas->glArea())->toBeNull()
         ->and($canvas->picture()->getPaintable())->toBeInstanceOf(GdkTexture::class)
-        ->and($canvas->surfaces())->toBe([SurfaceKind::GL_CONTEXT]);
+        ->and($canvas->surfaces())->toBe([SurfaceKind::GL_CONTEXT, ...gtkDmabufKinds()]);
 });
 
 it('reclaims before it is removed', function (): void {

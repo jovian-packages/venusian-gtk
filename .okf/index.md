@@ -7,6 +7,7 @@ okf_version: "0.2"
 * [Session](architecture/session.md) - GtkApplication session: register once, hold while connected, budgeted context pump, one-shot fd wake, macOS activation.
 * [Windows and menus](architecture/windows-and-menus.md) - GtkApplicationWindow per name, close/focus/resize mail, GMenu bars in-window (Linux) or app-wide (macOS), About.
 * [Primitives](architecture/primitives.md) - GTK concretes of Surface's TK primitives - factory, containers, leaves, CSS-per-primitive styling, border-box sizes, watched allocations, mail rules.
+* [Input](architecture/input.md) - GTKInputEngine: capture-phase controllers per window, signals as SeenEvents through the session's taps, keys by position, focus and close release.
 
 # API
 

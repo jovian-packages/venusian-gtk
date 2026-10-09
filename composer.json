@@ -28,11 +28,13 @@
         "ext-gtk": "^0.10",
         "venusian-surface/bridge": "^0.10.0",
         "venusian-surface/contracts": "^0.10.0",
+        "venusian-surface/human-input": "^0.10.0",
         "venusian-surface/windows": "^0.10.0",
         "venusian-voyager/nuts-and-bolts": "^0.10.1"
     },
     "require-dev": {
         "jovian/venusian-opengl": "^0.10.0",
+        "jovian/venusian-vulkan": "^0.10.0",
         "pestphp/pest": "^4",
         "venusian-surface/drawing": "^0.10.0",
         "venusian-voyager/config": "^0.10.1",
@@ -40,7 +42,8 @@
     },
     "suggest": {
         "ext-appkit": "Required on macOS: GTK runs on NSApplication there and only AppKit can bring the process forward when a window is presented.",
-        "ext-opengl": "A canvas lends its GtkGLArea's context to the 'opengl' rendering engine (jovian/venusian-opengl) when ext-opengl is loaded."
+        "ext-opengl": "A canvas lends its GtkGLArea's context to the 'opengl' rendering engine (jovian/venusian-opengl) when ext-opengl is loaded.",
+        "ext-vulkan": "On Linux with GTK 4.14+, a canvas lends a dmabuf surface to the 'vulkan' rendering engine (jovian/venusian-vulkan) when ext-vulkan is loaded: the engine exports each frame and the canvas shows it as a GdkDmabufTexture."
     },
     "autoload": {
         "psr-4": {

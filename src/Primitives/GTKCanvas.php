@@ -9,6 +9,7 @@ use Surface\Contracts\Drawing\LentSurface;
 use Surface\Contracts\Drawing\SurfaceBorrower;
 use Surface\Contracts\Drawing\SurfaceKind;
 use Surface\Contracts\Framebuffers\DamageTrackingFramebuffer;
+use Surface\Contracts\Framebuffers\DmabufExportable;
 use Surface\Contracts\Framebuffers\Region;
 use Surface\Contracts\Windows\Primitives\Placement;
 use Surface\Contracts\Windows\WindowException;
@@ -29,6 +30,13 @@ use Surface\Windows\Primitives\TKPrimitiveGroup;
  * renders only when asked: present() queues a render, and the area's render callback copies the
  * borrower's frame into the area's framebuffer, so a frame GTK redraws on its own (an expose, a
  * move) is copied again rather than lost.
+ *
+ * On Linux with GTK 4.14+ it lends a dmabuf surface too: nothing native is made, the handle is the
+ * canvas's GdkDisplay. The borrower exports each frame as a dmabuf (its framebuffer is
+ * DmabufExportable); after each present the canvas builds a GdkDmabufTexture over the export and
+ * shows it in the picture. The export's fd is the borrower's, borrowed by every texture built over
+ * it: the borrower keeps it open until the surface is released, and the canvas drops its texture
+ * then.
  */
 class GTKCanvas extends TKCanvas implements GTKView
 {
@@ -88,10 +96,37 @@ class GTKCanvas extends TKCanvas implements GTKView
         return $this->renders;
     }
 
-    /** A GL context, when ext-opengl is loaded to read it back and draw in the callback. */
+    /**
+     * A GL context, when ext-opengl is loaded to read it back and draw in the callback; then a
+     * dmabuf surface on Linux where GTK imports dmabufs (4.14+).
+     */
     public function surfaces(): array
     {
-        return self::hasOpenGL() ? [SurfaceKind::GL_CONTEXT] : [];
+        return [
+            ...(self::hasOpenGL() ? [SurfaceKind::GL_CONTEXT] : []),
+            ...($this->importsDmabuf() ? [SurfaceKind::DMABUF] : []),
+        ];
+    }
+
+    /** XBGR8888: the export's ABGR8888 bytes with the fourth one ignored, so opaque, as the canvas shows its own framebuffers. */
+    private const int DRM_FORMAT_XBGR8888 = 0x34324258;
+
+    private const int DRM_FORMAT_ABGR8888 = 0x34324241;
+
+    private const int DRM_FORMAT_MOD_LINEAR = 0;
+
+    /**
+     * GTK can build a texture over the engine's export here: Linux, GTK 4.14+ running and bound,
+     * and the canvas's display importing linear XBGR8888.
+     */
+    private function importsDmabuf(): bool
+    {
+        if (PHP_OS_FAMILY !== 'Linux' || ! class_exists(\GdkDmabufTextureBuilder::class) || ! method_exists(\GdkDisplay::class, 'getDmabufFormats')
+            || (\gtk_get_major_version() === 4 && \gtk_get_minor_version() < 14)) {
+            return false;
+        }
+
+        return $this->native->getDisplay()->getDmabufFormats()->contains(self::DRM_FORMAT_XBGR8888, self::DRM_FORMAT_MOD_LINEAR);
     }
 
     /**
@@ -101,6 +136,10 @@ class GTKCanvas extends TKCanvas implements GTKView
      */
     protected function makeSurface(SurfaceKind $kind, array $handles): array
     {
+        if ($kind === SurfaceKind::DMABUF) {
+            // The picture stays: the frames arrive as textures built over the borrower's export.
+            return ['display' => $this->native->getDisplay()->pointer()];
+        }
         /** @var \GtkBox $box */
         $box = $this->native;
         if (! $box->getRealized()) {
@@ -149,9 +188,15 @@ class GTKCanvas extends TKCanvas implements GTKView
         return $lent;
     }
 
-    /** The picture back in the area's place. */
+    /** The picture back in the area's place; after a dmabuf lend, the last imported texture goes (its fd is about to close). */
     protected function removeSurface(SurfaceKind $kind): void
     {
+        if ($kind === SurfaceKind::DMABUF) {
+            $this->picture->setPaintable(null);
+            $this->texture = null;
+
+            return;
+        }
         if (is_null($this->area)) {
             return;
         }
@@ -162,12 +207,70 @@ class GTKCanvas extends TKCanvas implements GTKView
         $this->area = null;
     }
 
-    /** GL frames are copied inside the area's render callback: presenting queues one. */
+    /**
+     * GL frames are copied inside the area's render callback: presenting queues one. A dmabuf
+     * frame: the borrower blits into its export and waits, then the canvas shows a texture built
+     * over it. Nothing when nothing was drawn since the last frame shown.
+     */
     protected function presentLent(LentSurface $surface, SurfaceBorrower $borrower): static
     {
-        $this->area?->queueRender();
+        if ($surface->kind !== SurfaceKind::DMABUF) {
+            $this->area?->queueRender();
+
+            return $this;
+        }
+        $frame = $borrower->framebuffer();
+        $tracked = $frame instanceof DamageTrackingFramebuffer;
+        if (! is_null($this->shown) && $tracked && $frame->damage() === []) {
+            return $this;
+        }
+        if (! $borrower->presentInto($surface)) {
+            return $this;
+        }
+        $this->shown = 0;
+        $export = $frame instanceof DmabufExportable ? $frame->dmabuf() : null;
+        if (! is_null($export)) {
+            $this->showDmabuf($frame, $export);
+        }
+        if ($tracked) {
+            $frame->beginEpoch();
+        }
 
         return $this;
+    }
+
+    /**
+     * A GdkDmabufTexture over the borrower's export, shown in the picture; built as an update of
+     * the last one when the size is unchanged. Imported as XBGR8888 (the export's ABGR8888 bytes,
+     * the fourth ignored) so the frame is opaque, as the canvas shows its own framebuffers. When
+     * GTK finalizes the texture, done with the fd, the export goes back to the borrower.
+     *
+     * @param  array{fd: int, width: int, height: int, stride: int, offset: int, fourcc: int, modifier: int}  $export
+     * @throws WindowException When GTK cannot import the dmabuf.
+     */
+    private function showDmabuf(DmabufExportable $frame, array $export): void
+    {
+        $previous = $this->texture;
+        $same = ! is_null($previous) && $previous->getWidth() === $export['width'] && $previous->getHeight() === $export['height'];
+        $fd = $export['fd'];
+        try {
+            $texture = \GdkDmabufTextureBuilder::new()
+                ->setDisplay($this->native->getDisplay())
+                ->setWidth($export['width'])->setHeight($export['height'])
+                ->setFourcc($export['fourcc'] === self::DRM_FORMAT_ABGR8888 ? self::DRM_FORMAT_XBGR8888 : $export['fourcc'])
+                ->setModifier($export['modifier'])
+                ->setPremultiplied(false)
+                ->setNPlanes(1)
+                ->setFd(0, $fd)->setStride(0, $export['stride'])->setOffset(0, $export['offset'])
+                ->setUpdateTexture($same ? $previous : null)
+                ->build(fn () => $frame->releaseDmabuf($fd));
+        } catch (\GError|\GtkException|\ValueError $failure) {
+            // Nothing holds the export now: it goes back at once.
+            $frame->releaseDmabuf($fd);
+
+            throw new WindowException("Canvas '{$this->path()}' cannot show the dmabuf: GTK refused to import it ({$failure->getMessage()}).", previous: $failure);
+        }
+        $this->picture->setPaintable($this->texture = $texture);
     }
 
     /**
@@ -252,7 +355,7 @@ class GTKCanvas extends TKCanvas implements GTKView
         return (float) $this->native->getScaleFactor();
     }
 
-    protected function applyPixels(string $rgba8, int $width, int $height): void
+    protected function applyPixels(string $rgba8, int $width, int $height, array $damage): void
     {
         $this->texture = \GdkMemoryTexture::new($width, $height, \GdkMemoryFormat::R8G8B8X8, $rgba8, $width * 4);
         $this->picture->setPaintable($this->texture);

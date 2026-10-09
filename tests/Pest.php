@@ -46,7 +46,7 @@ function driver(): GTKBridgeDriver
     if (is_null($driver)) {
         $container = new ControlPanel();
         $container->registerInstance('config', new Repository([
-            'bridge' => ['gtk' => ['application_id' => 'org.venusian.GtkDriverTests']],
+            'app' => ['name' => 'venusian-gtk tests', 'id' => 'org.venusian.GtkDriverTests'],
             'windows' => [
                 'about' => ['name' => 'venusian-gtk tests', 'version' => '0.10.0', 'copyright' => null],
                 'default_menu' => 'main',
@@ -121,4 +121,63 @@ function pumpFor(float $seconds): void
     while (microtime(true) < $until) {
         $pump->sleep(10_000_000);
     }
+}
+
+/** @return list<Surface\Contracts\Drawing\SurfaceKind> A dmabuf surface, after the GL context, where GTK can import one (Linux, GTK 4.14+). */
+function gtkDmabufKinds(): array
+{
+    return PHP_OS_FAMILY === 'Linux' && class_exists(GdkDmabufTextureBuilder::class) ? [Surface\Contracts\Drawing\SurfaceKind::DMABUF] : [];
+}
+
+/** What a canvas lends here, as its refusal names it. */
+function gtkLends(): string
+{
+    $kinds = [...(extension_loaded('opengl') ? ['gl-context'] : []), ...(gtkDmabufKinds() === [] ? [] : ['dmabuf'])];
+
+    return $kinds === [] ? 'none' : implode(', ', $kinds);
+}
+
+/** A frame an hour long: within a test only reads end it. */
+function inputFrame(): \Surface\HumanInput\InputFrame
+{
+    return new \Surface\HumanInput\InputFrame(fn (): int => 3_600_000_000_000);
+}
+
+/** A gtk input engine on the shared driver's session, connected; let go by letGoOfInput(). */
+function gtkInput(?Closure $button = null, ?Closure $active = null, ?Closure $inverted = null): \Jovian\Toolkits\GTK\Input\GTKInputEngine
+{
+    session();
+    $engine = new \Jovian\Toolkits\GTK\Input\GTKInputEngine(inputFrame(), driver(), $button, $active, $inverted);
+    $GLOBALS['gtk_input_engines'][] = $engine;
+
+    return $engine->connect();
+}
+
+/** Disconnects every engine gtkInput() made: their taps leave the shared session. */
+function letGoOfInput(): void
+{
+    foreach ($GLOBALS['gtk_input_engines'] ?? [] as $engine) {
+        $engine->disconnect();
+    }
+    $GLOBALS['gtk_input_engines'] = [];
+}
+
+/** The engine's controller of $class on $window, wired by a poll. */
+function controllerOf(\Jovian\Toolkits\GTK\Input\GTKInputEngine $engine, string $window, string $class): GtkEventController
+{
+    foreach ($engine->controllersOf($window) as $controller) {
+        if ($controller instanceof $class) {
+            return $controller;
+        }
+    }
+
+    throw new RuntimeException("No {$class} on '{$window}'.");
+}
+
+/** The hardware keycode GTK reports for a key position here: the macOS key code, or the evdev code + 8. */
+function keycodeOf(string $position): int
+{
+    [$mac, $evdev] = ['a' => [0x00, 30], 'q' => [0x0C, 16], 'shift' => [0x38, 42], 'rshift' => [0x3C, 54]][$position];
+
+    return PHP_OS_FAMILY === 'Darwin' ? $mac : $evdev + 8;
 }

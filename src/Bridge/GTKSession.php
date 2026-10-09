@@ -66,7 +66,7 @@ class GTKSession extends BridgedToolkitSession
      * @param bool $unique one primary instance per id (a second process becomes remote), or any number
      */
     public function __construct(
-        protected readonly string $application_id = 'org.venusian.Surface',
+        protected readonly string $application_id,
         protected readonly bool $unique = false,
     ) {
         parent::__construct();
