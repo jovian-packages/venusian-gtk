@@ -18,7 +18,7 @@ sources:
 
 | Hook | GTK calls |
 |---|---|
-| initialize (once) | `GtkApplication::new(id, unique ? DEFAULT_FLAGS : NON_UNIQUE)`, no-op `activate` handler, `register()` (startup initialises GTK), default `GMainContext` |
+| initialize (once) | `g_set_prgname(id)` (GTK names the X11 `WM_CLASS` after it, so docks match the window to a packaged build's `<id>.desktop`), `GtkApplication::new(id, unique ? DEFAULT_FLAGS : NON_UNIQUE)`, no-op `activate` handler, `register()` (startup initialises GTK), default `GMainContext` |
 | connect | `hold()` (alive with no windows), `activate()` |
 | disconnect | `release()` |
 | `pump($ns)` | budget > 0: `g_timeout_add(ceil ms)` + one blocking `iteration(true)`, remove the timeout if it did not fire; then up to `DRAIN_LIMIT` (64) non-blocking iterations while `pending()` |

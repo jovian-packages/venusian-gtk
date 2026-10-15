@@ -50,6 +50,10 @@ class GTKWindow implements ToolkitWindow
      */
     protected ?GtkWidget $bar_widget = null;
 
+    protected GTKRightClicks $right_clicks;
+
+    protected GTKCanvasClicks $canvas_clicks;
+
     public function __construct(
         protected readonly string $name,
         protected readonly GTKSession $session,
@@ -76,6 +80,8 @@ class GTKWindow implements ToolkitWindow
             return false;
         });
         g_signal_connect($this->window, 'notify::is-active', fn () => $this->activeChanged());
+        $this->right_clicks = new GTKRightClicks($this, $this->window, $this->content, $session);
+        $this->canvas_clicks = new GTKCanvasClicks($this, $this->window, $session);
         $session->watchWindow($this);
 
         if (! is_null($menu)) {
@@ -189,6 +195,17 @@ class GTKWindow implements ToolkitWindow
     public function session(): GTKSession
     {
         return $this->session;
+    }
+
+    /** The window's right clicks, posted as mail. */
+    public function rightClicks(): GTKRightClicks
+    {
+        return $this->right_clicks;
+    }
+
+    public function canvasClicks(): GTKCanvasClicks
+    {
+        return $this->canvas_clicks;
     }
 
     public function factory(): GTKPrimitiveFactory

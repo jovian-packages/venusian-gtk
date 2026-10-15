@@ -38,7 +38,47 @@ $this->name .= $keys->text();                          // typed text, from the k
 $mouse = HumanInput::mouse();                          // x(), y(), window(): the window name under the pointer
 ```
 
-* Keys are positions: GTK's hardware keycode, named as SDL names it, so the same key reads the same on the gtk and sdl3 engines. Text is the typed character; shortcut chords (Ctrl, Super/Command, and Alt off macOS) type none.
-* Mouse buttons 1, 2, 3, 8, 9 are left, middle, right, X1, X2. The wheel reads `dy > 0` rolled away from the user. A natural (inverted) scroll is turned back on GTK 4.20+, which reports it, so a trackpad reads as on the sdl3 engine; older GTK reports none, and the scroll reads as delivered.
+* Keys are positions: GTK's hardware keycode, named as SDL names it, so the same key reads the same on the gtk and sdl3 engines. Text is what GTK's input method commits, so dead keys and input methods compose; shortcut chords (Ctrl, Super/Command, and Alt off macOS) type none.
+* Mouse buttons 1, 2, 3, 8, 9 are left, middle, right, X1, X2, each read on its own, so a chord releases each. A touchscreen tap is the left button. `x()`/`y()` are in the window's content area. The wheel reads `dy > 0` rolled away from the user. A natural (inverted) scroll is turned back on GTK 4.20+, which reports it, so a trackpad reads as on the sdl3 engine; older GTK reports none, and the scroll reads as delivered.
 * Focus leaving for no window of this package, or a window closing, releases every key and button.
 * By hand, without the loop: `(new GTKInputEngine($frame, app('toolkit-bridge')->driver('gtk')))->connect()` once the session is connected, then `poll()` once a frame after the session's pump.
+
+## Edit menu and Mac text keys
+
+A profile's edit roles act on the focused widget through GTK's own actions (`text.undo`, `text.redo`, `clipboard.cut`, `clipboard.copy`, `clipboard.paste`, `selection.select-all`), with Select All falling back to a list's `list.select-all`. They take no accelerator: GTK's text widgets already take the standard keys (Command on macOS), and a list keeps its own Select All key.
+
+On macOS, text inputs and text areas also take the Mac's navigation and deletion keys, which GTK 4 binds only for Linux there: Cmd-Left/Right to the line ends, Cmd-Up/Down to the text's ends, Option-Left/Right by words (Shift selects with any of these), Cmd-Backspace to the line start, Option-Backspace and Option-Delete by words. HumanInput's window controller still sees every one of these keys.
+
+## Text areas
+
+`textArea(name, value)` is a GtkTextView in a GtkScrolledWindow. Read-only turns editing off and keeps the caret, so the user can still select and copy. Unwrapped, the pane scrolls sideways as far as its longest line. A font with `monospace` and no family asks CSS for `monospace`. Line backgrounds are paragraph-background tags, range colours foreground and background tags; a new value clears both. Lines and offsets are code points, as GTK counts them. `selectLines()` selects whole lines and `selectedLines()` reads the selection back as lines.
+
+`scrollPosition()` is the adjustments as fractions of the content. `scrollTo()` and `scrollToLine()` set them, and a target within half a pixel of where the pane is leaves it alone. With `watchScroll()` on, a scroll the user makes (scroll bar, wheel, a resize) posts `ViewScrolled` as `view.scrolled.<window>.<path>`, latest only. Hooks post nothing. GTK lays text out on later frames and moves the adjustments as it goes, so a hook that changes the value, wrap, font, colour or tags leaves the area settling (`isSettling()`) until its adjustments hold still for a few frames, or for at most 500 ms; the same input again changes nothing and starts no settle. A scroll asked for while settling is made when the settle ends, the latest one winning. GTK's own moves during a settle post nothing; a user scroll inside one (the value moving while the content and page size hold, or the page size changing in a resize) posts one `ViewScrolled` when the settle ends.
+
+```php
+$diff = $window->column('m')->textArea('diff', $text)->fill()->setReadOnly(true)->setWrap(false)
+    ->setFont(new FontSpec(12.0, monospace: true))
+    ->setLineBackgrounds([3 => Color::hex('#e6ffec')])
+    ->watchScroll();
+$diff->scrollToLine(3);
+```
+
+## Links
+
+`link(name, text, url)` is a GtkLinkButton over the URL with the text: GTK opens the URL when it is clicked, in the browser for http and https, and nothing posts. A disabled link is insensitive. Alignment places the text inside the button.
+
+## Right-click mail
+
+A right click in a window posts mail naming what was clicked: `view.right-clicked.<window>.<path>` for the innermost primitive under the pointer (`x`, `y` in that primitive), or `window.right-clicked.<window>` on bare content (`x`, `y` in the content area). A right click is the right button, Ctrl-click on macOS, or (on Linux) a primary press held still for GTK's long-press time, which is how a touchscreen registered as a pointer right-clicks. A disabled primitive posts nothing.
+
+```php
+public function loop(array $mail): void
+{
+    foreach ($mail as $m) {
+        if ($m instanceof \Surface\Contracts\Windows\Mail\View\RightClicked) {
+            $this->menuFor($m->path, $m->x, $m->y);
+        }
+    }
+}
+```
+

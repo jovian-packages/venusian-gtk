@@ -8,11 +8,17 @@ use GtkEventController;
 use GtkEventControllerFocus;
 use GtkEventControllerKey;
 use GtkEventControllerMotion;
+use GtkEventControllerLegacy;
 use GtkEventControllerScroll;
-use GtkGestureClick;
-use GtkGestureSingle;
+use GtkIMContext;
+use GtkIMMulticontext;
 use GtkPropagationPhase;
+use GtkWidget;
+use GdkButtonEvent;
+use GdkEvent;
+use GdkEventType;
 use GdkScrollEvent;
+use GdkTouchEvent;
 use GdkScrollRelativeDirection;
 use GdkScrollUnit;
 use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
@@ -35,13 +41,15 @@ use Surface\HumanInput\Keymaps\MacKeycodes;
  * application-wide event hook, so each poll puts five capture-phase controllers on every window
  * the driver holds that has none yet; their signals copy their arguments into a SeenEvent and
  * show it to the session's taps, this engine among them, and poll() applies what was seen.
- * Keys are read by position (the hardware keycode), as the sdl3 engine reads scancodes; the
- * keyval only types text. Focus leaving for no window of the driver, or a window closing, releases
- * every key and button.
+ * Keys are read by position (the hardware keycode), as the sdl3 engine reads scancodes. Text is
+ * what the window's input method commits (dead keys and input methods compose), each key event
+ * fed to it and passed on. Buttons come from raw press and release events, each button on its
+ * own. Points are in the window's content area. Focus leaving for no window of the driver, or a
+ * window closing, releases every key and button.
  */
 final class GTKInputEngine implements InputEngineDriver, InputTap
 {
-    /** GDK_KEY_VoidSymbol: macOS GTK follows every key press with one of these at keycode 0, never released. */
+    /** GDK_KEY_VoidSymbol: macOS GTK follows every key press with one at keycode 0, never released, which the input method would commit the key's text for again: neither read as a key nor fed to it. */
     private const int VOID_SYMBOL = 0xFFFFFF;
 
     /** Each modifier's keys, both sides. */
@@ -60,7 +68,7 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
 
     private ?GTKSession $session = null;
 
-    /** @var array<string, array{GtkApplicationWindow, list<GtkEventController>, int}> by window name: native, controllers, is-active handler */
+    /** @var array<string, array{GtkApplicationWindow, list<GtkEventController>, int, GtkIMContext}> by window name: native, controllers, is-active handler, input method */
     private array $wired = [];
 
     /** @var list<SeenEvent> shown since the last poll */
@@ -74,8 +82,8 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
     /** @var array<string, true> modifier keys held, by Key value */
     private array $held_modifiers = [];
 
-    /** @var Closure(GtkGestureSingle): int */
-    private readonly Closure $button;
+    /** The modifier state of the last key press, which text the input method commits for it is typed under. */
+    private int $text_state = 0;
 
     /** @var Closure(): bool */
     private readonly Closure $active;
@@ -84,16 +92,14 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
     private readonly Closure $inverted;
 
     /**
-     * @param (Closure(GtkGestureSingle): int)|null $button the button of a click; getCurrentButton() by default
      * @param (Closure(): bool)|null $active whether any of the driver's windows is active; asked of each window by default
      * @param (Closure(GtkEventControllerScroll): bool)|null $inverted whether the scroll being handled is inverted from the physical motion
      *        (natural scrolling); GdkScrollEvent::getRelativeDirection() by default, which GTK 4.20+ has
      */
-    public function __construct(InputFrame $frame, private readonly GTKBridgeDriver $driver, ?Closure $button = null, ?Closure $active = null, ?Closure $inverted = null)
+    public function __construct(InputFrame $frame, private readonly GTKBridgeDriver $driver, ?Closure $active = null, ?Closure $inverted = null)
     {
         $this->keyboard = new Keyboard($frame);
         $this->mouse = new Mouse($frame);
-        $this->button = $button ?? static fn (GtkGestureSingle $gesture): int => $gesture->getCurrentButton();
         $this->active = $active ?? fn (): bool => array_any($this->driver->all(), fn (GTKWindow $window): bool => $window->isActive());
         $this->inverted = $inverted ?? static function (GtkEventControllerScroll $scroll): bool {
             $event = $scroll->getCurrentEvent();
@@ -128,12 +134,13 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
         }
 
         $open = $this->driver->all();
-        foreach ($this->wired as $name => [$native, $controllers, $handler]) {
+        foreach ($this->wired as $name => [$native, $controllers, $handler, $im]) {
             if (isset($open[$name]) && $open[$name]->native() === $native) {
                 foreach ($controllers as $controller) {
                     $native->removeController($controller);
                 }
                 g_signal_handler_disconnect($native, $handler);
+                $im->setClientWidget(null);
             }
         }
         $this->session?->untap($this);
@@ -170,9 +177,11 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
         foreach ($seen as $event) {
             match ($event->kind) {
                 SeenKind::Key => $this->key($event),
+                SeenKind::Text => $this->keyboard->appendText(self::text($event->text, $event->state)),
                 SeenKind::Motion, SeenKind::Enter => $this->pointer($event),
                 SeenKind::Leave => $this->leave($event->window),
                 SeenKind::Button => $this->click($event),
+                SeenKind::GrabBroken => $this->mouse->releaseAll(),
                 SeenKind::Wheel => $this->mouse->addWheel(...self::wheel($event->x, $event->y, $event->pixels, $event->inverted)),
                 SeenKind::FocusLost => $focus_lost = true,
             };
@@ -195,6 +204,12 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
         return $this->mouse;
     }
 
+    /** The input method this engine feeds $window's key events to, null once it closed. */
+    public function imContextOf(string $window): ?GtkIMContext
+    {
+        return $this->wired[$window][3] ?? null;
+    }
+
     /** @return list<GtkEventController> the controllers this engine put on $window, none once it closed */
     public function controllersOf(string $window): array
     {
@@ -208,17 +223,26 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
     }
 
     /**
-     * The text a key press types: none for control characters and for shortcut chords (Ctrl,
-     * Super, Meta; Alt too, except on macOS, where Option types characters).
+     * The text an input method committed, typed under the modifier state of the key press that
+     * produced it: none for shortcut chords (Ctrl, Super, Meta; Alt too, except on macOS, where
+     * Option types characters), and never a control character.
      */
-    public static function text(int $code_point, int $state, bool $macos = PHP_OS_FAMILY === 'Darwin'): string
+    public static function text(string $committed, int $state, bool $macos = PHP_OS_FAMILY === 'Darwin'): string
     {
         $chord = GDK_CONTROL_MASK | GDK_SUPER_MASK | GDK_META_MASK | ($macos ? 0 : GDK_ALT_MASK);
-        if (($state & $chord) !== 0 || $code_point <= 0x1F || $code_point === 0x7F) {
-            return '';
-        }
 
-        return (string) mb_chr($code_point, 'UTF-8');
+        return ($state & $chord) !== 0 ? '' : (string) preg_replace('/[\x00-\x1F\x7F]/u', '', $committed);
+    }
+
+    /**
+     * A point in $native's coordinates (where its controllers report) in $content's, below and beside
+     * anything the window puts around its content (Linux's in-window menu bar).
+     *
+     * @return array{float, float}
+     */
+    public static function contentPoint(GtkWidget $native, GtkWidget $content, float $x, float $y): array
+    {
+        return $native->computePoint($content, $x, $y) ?? [$x, $y];
     }
 
     /** GDK modifier state as Surface modifiers: Super (Linux) and Meta (Command on macOS) are meta. */
@@ -275,32 +299,60 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
                 continue;
             }
             $closed = $closed || isset($this->wired[$name]);
-            $this->wired[$name] = $this->attach($name, $native);
+            $this->wired[$name] = $this->attach($name, $window);
         }
 
         return $closed;
     }
 
-    /** @return array{GtkApplicationWindow, list<GtkEventController>, int} */
-    private function attach(string $name, GtkApplicationWindow $native): array
+    /** @return array{GtkApplicationWindow, list<GtkEventController>, int, GtkIMContext} */
+    private function attach(string $name, GTKWindow $window): array
     {
+        $native = $window->native();
+        $content = $window->contentArea();
         $see = fn (SeenEvent $event) => $this->session?->see($event);
 
+        $im = GtkIMMulticontext::new();
+        $im->setClientWidget($native);
+        // GTK 4.18's Wayland input method binds its text-input on a registry round trip after the
+        // display's first use of it; a context focused before then stays GTK's focus past its own
+        // finalize. focusOut() makes that first use without taking focus; sync() is the round trip.
+        $im->focusOut();
+        $native->getDisplay()->sync();
+        g_signal_connect($im, 'commit', function (GtkIMContext $c, string $text) use ($see, $name): void {
+            $see(new SeenEvent(SeenKind::Text, $name, state: $this->text_state, text: $text));
+        });
+        $feed = static function (GtkEventControllerKey $c) use ($im): void {
+            $event = $c->getCurrentEvent();
+            if ($event instanceof GdkEvent) {
+                $im->filterKeypress($event);
+            }
+        };
+
         $key = GtkEventControllerKey::new();
-        g_signal_connect($key, 'key-pressed', function (GtkEventControllerKey $c, int $keyval, int $keycode, int $state) use ($see, $name): bool {
-            $see(new SeenEvent(SeenKind::Key, $name, keyval: $keyval, keycode: $keycode, state: $state, down: true));
+        g_signal_connect($key, 'key-pressed', function (GtkEventControllerKey $c, int $keyval, int $keycode, int $state) use ($see, $name, $feed): bool {
+            if ($keyval !== self::VOID_SYMBOL) {
+                $this->text_state = $state;
+                $see(new SeenEvent(SeenKind::Key, $name, keyval: $keyval, keycode: $keycode, state: $state, down: true));
+                $feed($c);
+            }
 
             return false;
         });
-        g_signal_connect($key, 'key-released', function (GtkEventControllerKey $c, int $keyval, int $keycode, int $state) use ($see, $name): void {
-            $see(new SeenEvent(SeenKind::Key, $name, keyval: $keyval, keycode: $keycode, state: $state));
+        g_signal_connect($key, 'key-released', function (GtkEventControllerKey $c, int $keyval, int $keycode, int $state) use ($see, $name, $feed): void {
+            if ($keyval !== self::VOID_SYMBOL) {
+                $see(new SeenEvent(SeenKind::Key, $name, keyval: $keyval, keycode: $keycode, state: $state));
+                $feed($c);
+            }
         });
 
         $motion = GtkEventControllerMotion::new();
-        g_signal_connect($motion, 'enter', function (GtkEventControllerMotion $c, float $x, float $y) use ($see, $name): void {
+        g_signal_connect($motion, 'enter', function (GtkEventControllerMotion $c, float $x, float $y) use ($see, $name, $native, $content): void {
+            [$x, $y] = self::contentPoint($native, $content, $x, $y);
             $see(new SeenEvent(SeenKind::Enter, $name, x: $x, y: $y));
         });
-        g_signal_connect($motion, 'motion', function (GtkEventControllerMotion $c, float $x, float $y) use ($see, $name): void {
+        g_signal_connect($motion, 'motion', function (GtkEventControllerMotion $c, float $x, float $y) use ($see, $name, $native, $content): void {
+            [$x, $y] = self::contentPoint($native, $content, $x, $y);
             $see(new SeenEvent(SeenKind::Motion, $name, x: $x, y: $y));
         });
         g_signal_connect($motion, 'leave', function (GtkEventControllerMotion $c) use ($see, $name): void {
@@ -314,21 +366,29 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
             return false;
         });
 
-        $click = GtkGestureClick::new();
-        $click->setButton(0);
-        g_signal_connect($click, 'pressed', function (GtkGestureClick $c, int $n, float $x, float $y) use ($see, $name): void {
-            $see(new SeenEvent(SeenKind::Button, $name, x: $x, y: $y, button: ($this->button)($c), down: true));
-        });
-        g_signal_connect($click, 'released', function (GtkGestureClick $c, int $n, float $x, float $y) use ($see, $name): void {
-            $see(new SeenEvent(SeenKind::Button, $name, x: $x, y: $y, button: ($this->button)($c)));
+        $buttons = GtkEventControllerLegacy::new();
+        g_signal_connect($buttons, 'event', function (GtkEventControllerLegacy $c, GdkEvent $event) use ($see, $name, $native, $content): bool {
+            $seen = self::buttonEvent($event, $name, $native, $content);
+            if (! is_null($seen)) {
+                $see($seen);
+            }
+
+            return false;
         });
 
         $focus = GtkEventControllerFocus::new();
-        g_signal_connect($focus, 'leave', function (GtkEventControllerFocus $c) use ($see, $name): void {
+        g_signal_connect($focus, 'enter', function (GtkEventControllerFocus $c) use ($im): void {
+            $im->focusIn();
+        });
+        g_signal_connect($focus, 'leave', function (GtkEventControllerFocus $c) use ($see, $name, $im): void {
+            $im->focusOut();
             $see(new SeenEvent(SeenKind::FocusLost, $name));
         });
+        if ($window->isActive()) {
+            $im->focusIn();
+        }
 
-        $controllers = [$key, $motion, $scroll, $click, $focus];
+        $controllers = [$key, $motion, $scroll, $buttons, $focus];
         foreach ($controllers as $controller) {
             $controller->setPropagationPhase(GtkPropagationPhase::CAPTURE);
             $native->addController($controller);
@@ -339,19 +399,39 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
             }
         });
 
-        return [$native, $controllers, $handler];
+        return [$native, $controllers, $handler, $im];
+    }
+
+    /**
+     * A raw event as a button change, at its point in the content area: a button press or release
+     * (each button on its own, so chords and claimed presses keep their releases), a touch that
+     * drives the pointer as the left button, or a broken grab, after which no release comes.
+     */
+    private static function buttonEvent(GdkEvent $event, string $name, GtkApplicationWindow $native, GtkWidget $content): ?SeenEvent
+    {
+        $type = $event->getEventType();
+        if ($type === GdkEventType::GRAB_BROKEN) {
+            return new SeenEvent(SeenKind::GrabBroken, $name);
+        }
+        [$button, $down] = match (true) {
+            $event instanceof GdkButtonEvent && ! $event->getPointerEmulated() => [$event->getButton(), $type === GdkEventType::BUTTON_PRESS],
+            $event instanceof GdkTouchEvent && $event->getEmulatingPointer() && $type !== GdkEventType::TOUCH_UPDATE => [1, $type === GdkEventType::TOUCH_BEGIN],
+            default => [0, false],
+        };
+        if ($button === 0) {
+            return null;
+        }
+        [$sx, $sy] = $event->getPosition() ?? [0.0, 0.0];
+        [$ox, $oy] = $native->getSurfaceTransform();
+        [$x, $y] = self::contentPoint($native, $content, $sx - $ox, $sy - $oy);
+
+        return new SeenEvent(SeenKind::Button, $name, x: $x, y: $y, button: $button, down: $down);
     }
 
     private function key(SeenEvent $event): void
     {
-        if ($event->keyval === self::VOID_SYMBOL) {
-            return;
-        }
         $key = self::keyOf($event->keycode);
         $this->keyboard->update($key, $event->down)->setModifiers($this->modifiersAfter($key, $event->down, $event->state));
-        if ($event->down) {
-            $this->keyboard->appendText(self::text(gdk_keyval_to_unicode($event->keyval), $event->state));
-        }
     }
 
     /**

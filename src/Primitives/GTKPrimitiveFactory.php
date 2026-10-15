@@ -16,6 +16,7 @@ use Surface\Contracts\Windows\Primitives\TKFixed;
 use Surface\Contracts\Windows\Primitives\TKGrid;
 use Surface\Contracts\Windows\Primitives\TKImage;
 use Surface\Contracts\Windows\Primitives\TKLabel;
+use Surface\Contracts\Windows\Primitives\TKLink;
 use Surface\Contracts\Windows\Primitives\TKPrimitiveGroup as GroupContract;
 use Surface\Contracts\Windows\Primitives\TKProgressBar;
 use Surface\Contracts\Windows\Primitives\TKRow;
@@ -46,6 +47,11 @@ class GTKPrimitiveFactory implements PrimitiveFactory
     public function mintLabel(GroupContract $host, string $name, string $text): TKLabel
     {
         return new GTKLabel($name, $this->window, self::parent($host), self::placement($host), $text);
+    }
+
+    public function mintLink(GroupContract $host, string $name, string $text, string $url): TKLink
+    {
+        return new GTKLink($name, $this->window, self::parent($host), self::placement($host), $text, $url);
     }
 
     public function mintButton(GroupContract $host, string $name, string $label): TKButton

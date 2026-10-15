@@ -5,6 +5,7 @@ namespace Jovian\Toolkits\GTK\Primitives;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKTextStyle;
+use Jovian\Toolkits\GTK\Windows\GTKMacTextKeys;
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
 use Surface\Contracts\Windows\Mail\View\TextChanged;
 use Surface\Contracts\Windows\Mail\View\TextSubmitted;
@@ -22,6 +23,8 @@ class GTKTextInput extends TKTextInput implements GTKView
 {
     use GTKPrimitive;
     use GTKTextStyle;
+
+    private ?\GtkEventControllerKey $mac_keys = null;
 
     /**
      * @param string $name
@@ -49,6 +52,23 @@ class GTKTextInput extends TKTextInput implements GTKView
             $this->post(new TextChanged($this->window->name(), $this->path(), $this->uuid, $this->value));
         });
         $this->connect($this->native, 'activate', fn () => $this->post(new TextSubmitted($this->window->name(), $this->path(), $this->uuid, $this->value)));
+        if (PHP_OS_FAMILY === 'Darwin') {
+            // The entry's GtkText holds focus while it is edited; it is what the keybinding signals belong to.
+            $this->mac_keys = GTKMacTextKeys::attach($this->native, function (): ?\GtkWidget {
+                $focus = $this->window->native()->getFocus();
+
+                return $focus?->typeName() === 'GtkText' ? $focus : null;
+            });
+        }
+    }
+
+    /**
+     * The Mac text keys' controller on the entry; null off macOS.
+     * @return \GtkEventControllerKey|null
+     */
+    public function macKeys(): ?\GtkEventControllerKey
+    {
+        return $this->mac_keys;
     }
 
     /**

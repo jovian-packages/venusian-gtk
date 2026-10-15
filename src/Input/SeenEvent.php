@@ -20,5 +20,6 @@ final readonly class SeenEvent
         public bool $down = false,
         public bool $pixels = false,
         public bool $inverted = false,
+        public string $text = '',
     ) {}
 }

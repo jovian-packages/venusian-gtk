@@ -272,6 +272,8 @@ trait GTKPrimitive
             $declarations[] = "font-weight: {$font->weight->toCssWeight()};";
             if (! is_null($font->family)) {
                 $declarations[] = 'font-family: '.self::cssString($font->family).';';
+            } elseif ($font->monospace) {
+                $declarations[] = 'font-family: monospace;';
             }
         }
 

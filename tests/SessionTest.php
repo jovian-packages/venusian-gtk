@@ -18,6 +18,7 @@ it('registers the application and holds it while connected', function (): void {
     expect($session->connected())->toBeTrue()
         ->and($session->application()->getIsRegistered())->toBeTrue()
         ->and($session->application()->getApplicationId())->toBe('org.venusian.GtkDriverTests')
+        ->and(g_get_prgname())->toBe('org.venusian.GtkDriverTests')
         ->and(gtk_is_initialized())->toBeTrue();
 
     $session->disconnect();

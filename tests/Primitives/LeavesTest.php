@@ -192,6 +192,8 @@ it('edits a text area inside a scrolled window and posts TextChanged for edits o
 
     // A user edit: GTK wraps it in a user action, inside which a replace deletes, then inserts.
     $buffer = $area->textView()->getBuffer();
+    // setText stands in for the user's edit; undo off keeps GTK's history from warning about it.
+    g_object_set_property($buffer, 'enable-undo', false);
     $buffer->beginUserAction();
     $buffer->setText('typed');
     $buffer->endUserAction();

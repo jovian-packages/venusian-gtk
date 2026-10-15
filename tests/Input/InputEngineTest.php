@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
 use Jovian\Toolkits\GTK\Input\GTKInputEngine;
+use Jovian\Toolkits\GTK\Input\SeenEvent;
+use Jovian\Toolkits\GTK\Input\SeenKind;
 use Surface\Contracts\HumanInput\HumanInputException;
 use Surface\Contracts\HumanInput\Key;
 use Surface\Contracts\HumanInput\Modifiers;
@@ -25,18 +27,19 @@ it('wires five capture-phase controllers to each window once', function (): void
     $controllers = $engine->controllersOf('keys');
 
     expect(array_map(fn (GtkEventController $c): string => $c::class, $controllers))
-        ->toBe([GtkEventControllerKey::class, GtkEventControllerMotion::class, GtkEventControllerScroll::class, GtkGestureClick::class, GtkEventControllerFocus::class])
+        ->toBe([GtkEventControllerKey::class, GtkEventControllerMotion::class, GtkEventControllerScroll::class, GtkEventControllerLegacy::class, GtkEventControllerFocus::class])
         ->and(array_map(fn (GtkEventController $c): GtkPropagationPhase => $c->getPropagationPhase(), $controllers))->toBe(array_fill(0, 5, GtkPropagationPhase::CAPTURE))
         ->and(array_map(fn (GtkEventController $c): ?GtkWidget => $c->getWidget(), $controllers))->toBe(array_fill(0, 5, driver()->get('keys')->native()));
 });
 
-it('reads keys by position and types the keyval\'s text', function (): void {
+it('reads keys by position, and text from the window\'s input method', function (): void {
     driver()->open('keys', 200, 100);
     $engine = gtkInput();
     $engine->poll();
     $key = controllerOf($engine, 'keys', GtkEventControllerKey::class);
 
     g_signal_emit_by_name($key, 'key-pressed', 0x61, keycodeOf('q'), 0);
+    g_signal_emit_by_name($engine->imContextOf('keys'), 'commit', 'a');
     $engine->poll();
     [$down, $text] = [$engine->keyboard()->isDown(Key::Q), $engine->keyboard()->text()];
     g_signal_emit_by_name($key, 'key-released', 0x61, keycodeOf('q'), 0);
@@ -60,21 +63,36 @@ it('ignores the VoidSymbol press macOS GTK sends after each key, which never rel
 
     expect($engine->keyboard()->pressedKeys())->toBe([Key::Q])
         ->and($engine->keyboard()->isDown(Key::A))->toBeFalse()
-        ->and($engine->keyboard()->text())->toBe('q');
+        ->and($engine->keyboard()->text())->toBe('');
 });
 
-it('withholds text for shortcut chords, not for Option on macOS', function (): void {
+it('withholds committed text for shortcut chords, not for Option on macOS, and drops control characters', function (): void {
     expect([
-        GTKInputEngine::text(0x63, GDK_CONTROL_MASK),
-        GTKInputEngine::text(0x63, GDK_META_MASK),
-        GTKInputEngine::text(0x63, GDK_SUPER_MASK),
-        GTKInputEngine::text(0x0D, 0),
-        GTKInputEngine::text(0x7F, 0),
-        GTKInputEngine::text(0, 0),
-        GTKInputEngine::text(0xE9, GDK_ALT_MASK, macos: true),
-        GTKInputEngine::text(0xE9, GDK_ALT_MASK, macos: false),
-        GTKInputEngine::text(0xE9, GDK_SHIFT_MASK),
-    ])->toBe(['', '', '', '', '', '', 'é', '', 'é']);
+        GTKInputEngine::text('c', GDK_CONTROL_MASK),
+        GTKInputEngine::text('c', GDK_META_MASK),
+        GTKInputEngine::text('c', GDK_SUPER_MASK),
+        GTKInputEngine::text("\r", 0),
+        GTKInputEngine::text("a\x7Fb\tc", 0),
+        GTKInputEngine::text('é', GDK_ALT_MASK, macos: true),
+        GTKInputEngine::text('é', GDK_ALT_MASK, macos: false),
+        GTKInputEngine::text('é', GDK_SHIFT_MASK),
+    ])->toBe(['', '', '', '', 'abc', 'é', '', 'é']);
+});
+
+it('takes a dead key\'s composed text as the input method commits it, under the state of the key that finished it', function (): void {
+    driver()->open('dead', 200, 100);
+    $engine = gtkInput();
+    $engine->poll();
+    $key = controllerOf($engine, 'dead', GtkEventControllerKey::class);
+
+    g_signal_emit_by_name($key, 'key-pressed', 0xFE51, keycodeOf('e'), GDK_ALT_MASK);
+    g_signal_emit_by_name($key, 'key-released', 0xFE51, keycodeOf('e'), GDK_ALT_MASK);
+    g_signal_emit_by_name($key, 'key-pressed', 0x65, keycodeOf('e'), 0);
+    g_signal_emit_by_name($engine->imContextOf('dead'), 'commit', 'é');
+    $engine->poll();
+
+    expect($engine->keyboard()->text())->toBe('é')
+        ->and($engine->keyboard()->isDown(Key::E))->toBeTrue();
 });
 
 it('reads modifiers from key events, each event\'s own modifier key applied, and ignores the modifiers signal', function (): void {
@@ -140,21 +158,60 @@ it('tracks the pointer, its window and motion, and forgets the window it leaves'
         ->and([$engine->mouse()->x(), $engine->mouse()->y(), $engine->mouse()->window()])->toBe([15.0, 18.0, null]);
 });
 
-it('reads the button the gesture reports, at the click point', function (): void {
+it('reads each button from its own press and release, at the point', function (): void {
     driver()->open('click', 200, 100);
-    $engine = gtkInput(button: fn (GtkGestureSingle $gesture): int => 3);
+    $engine = gtkInput();
     $engine->poll();
-    $click = controllerOf($engine, 'click', GtkGestureClick::class);
-    g_signal_emit_by_name($click, 'pressed', 1, 40.0, 30.0);
+    session()->see(new SeenEvent(SeenKind::Button, 'click', x: 40.0, y: 30.0, button: 3, down: true));
     $engine->poll();
     $down = [$engine->mouse()->isDown(MouseButton::RIGHT), $engine->mouse()->x(), $engine->mouse()->y(), $engine->mouse()->window()];
-    g_signal_emit_by_name($click, 'released', 1, 40.0, 30.0);
+    session()->see(new SeenEvent(SeenKind::Button, 'click', x: 40.0, y: 30.0, button: 3));
     $engine->poll();
 
     expect($down)->toBe([true, 40.0, 30.0, 'click'])
         ->and($engine->mouse()->isDown(MouseButton::RIGHT))->toBeFalse()
         ->and(array_map(fn (int $b): ?MouseButton => GTKInputEngine::buttonOf($b), [1, 2, 3, 8, 9, 4]))
         ->toBe([MouseButton::LEFT, MouseButton::MIDDLE, MouseButton::RIGHT, MouseButton::X1, MouseButton::X2, null]);
+});
+
+it('holds two buttons at once and releases each on its own', function (): void {
+    driver()->open('chord', 200, 100);
+    $engine = gtkInput();
+    $engine->poll();
+    session()->see(new SeenEvent(SeenKind::Button, 'chord', x: 5.0, y: 5.0, button: 1, down: true));
+    session()->see(new SeenEvent(SeenKind::Button, 'chord', x: 5.0, y: 5.0, button: 3, down: true));
+    $engine->poll();
+    $both = [$engine->mouse()->isDown(MouseButton::LEFT), $engine->mouse()->isDown(MouseButton::RIGHT)];
+    session()->see(new SeenEvent(SeenKind::Button, 'chord', x: 5.0, y: 5.0, button: 3));
+    $engine->poll();
+    $left = [$engine->mouse()->isDown(MouseButton::LEFT), $engine->mouse()->isDown(MouseButton::RIGHT)];
+    session()->see(new SeenEvent(SeenKind::Button, 'chord', x: 5.0, y: 5.0, button: 1));
+    $engine->poll();
+
+    expect([$both, $left, $engine->mouse()->isDown(MouseButton::LEFT)])->toBe([[true, true], [true, false], false]);
+});
+
+it('releases held buttons when the pointer grab breaks, as no release will follow', function (): void {
+    driver()->open('grab', 200, 100);
+    $engine = gtkInput(active: fn (): bool => true);
+    $engine->poll();
+    session()->see(new SeenEvent(SeenKind::Button, 'grab', x: 5.0, y: 5.0, button: 1, down: true));
+    $engine->poll();
+    session()->see(new SeenEvent(SeenKind::GrabBroken, 'grab'));
+    $engine->poll();
+
+    expect($engine->mouse()->isDown(MouseButton::LEFT))->toBeFalse()
+        ->and($engine->mouse()->wasReleased(MouseButton::LEFT))->toBeTrue();
+});
+
+it('reads points in the content area, below anything the window puts above it', function (): void {
+    session();
+    $window = driver()->open('points', 200, 100);
+    $window->contentArea()->setMarginTop(30);
+    $window->present();
+    pumpUntil(fn (): bool => $window->contentArea()->getHeight() === 70);
+
+    expect(GTKInputEngine::contentPoint($window->native(), $window->contentArea(), 5.0, 40.0))->toBe([5.0, 10.0]);
 });
 
 it('turns GTK\'s down-positive vertical scrolling round, ten pixels to a line', function (): void {
@@ -182,12 +239,12 @@ it('undoes natural scrolling: a scroll GTK marks inverted reads as the fingers m
 it('releases every key and button when focus leaves for no window of the driver', function (): void {
     driver()->open('focus', 200, 100);
     $active = true;
-    $engine = gtkInput(button: fn (GtkGestureSingle $gesture): int => 1, active: function () use (&$active): bool {
+    $engine = gtkInput(active: function () use (&$active): bool {
         return $active;
     });
     $engine->poll();
     g_signal_emit_by_name(controllerOf($engine, 'focus', GtkEventControllerKey::class), 'key-pressed', 0x61, keycodeOf('a'), 0);
-    g_signal_emit_by_name(controllerOf($engine, 'focus', GtkGestureClick::class), 'pressed', 1, 1.0, 1.0);
+    session()->see(new SeenEvent(SeenKind::Button, 'focus', x: 1.0, y: 1.0, button: 1, down: true));
     g_signal_emit_by_name(controllerOf($engine, 'focus', GtkEventControllerFocus::class), 'leave');
     $engine->poll();
     $kept = [$engine->keyboard()->isDown(Key::A), $engine->mouse()->isDown(MouseButton::LEFT)];
@@ -244,6 +301,19 @@ it('takes its controllers off windows still open when it disconnects, and sees n
         ->and($engine->connected())->toBeFalse()
         ->and($engine->controllersOf('leaving'))->toBe([])
         ->and($engine->keyboard()->isDown(Key::A))->toBeFalse();
+});
+
+it('lets go of an active window\'s input method before the main loop runs, and the next window takes focus', function (): void {
+    // The process's first input method focus: run alone, GTK 4.18 on Wayland binds its text-input only after it.
+    requireActive(driver()->open('first', 200, 100)->present());
+    $engine = gtkInput();
+    $engine->poll();
+    $engine->disconnect();
+    driver()->closeAll();
+    $second = driver()->open('second', 200, 100)->present();
+    requireActive($second);
+
+    expect($second->isActive())->toBeTrue();
 });
 
 it('refuses to connect while its driver has no connected session, naming the toolkit', function (): void {

@@ -22,11 +22,37 @@ use Surface\Windows\Menus\MenuProfile;
  * A menu profile built once into a GMenu model and the actions its items name: "win"
  * actions for a window's bar, "app" actions for the app's default bar (macOS), which
  * works with no window. Separators become section boundaries, which is how GTK draws
- * them; toggles are stateful boolean actions. Every item posts mail; About shows a
- * non-modal dialog.
+ * them; toggles are stateful boolean actions. Every item posts mail but the edit roles,
+ * which run the focused widget's own action; About shows a non-modal dialog.
  */
 class GTKMenuBar
 {
+    /** GTK's own actions on a focused widget for each edit role, tried in order: text widgets first, then lists. */
+    public const array EDIT_ACTIONS = [
+        'undo' => ['text.undo'],
+        'redo' => ['text.redo'],
+        'cut' => ['clipboard.cut'],
+        'copy' => ['clipboard.copy'],
+        'paste' => ['clipboard.paste'],
+        'select-all' => ['selection.select-all', 'list.select-all'],
+    ];
+
+    /** Run an edit role on the widget with focus in $window; whether a widget took it. */
+    public static function edit(?GtkWindow $window, MenuRole $role): bool
+    {
+        $focus = $window?->getFocus();
+        if (is_null($focus)) {
+            return false;
+        }
+        foreach (self::EDIT_ACTIONS[$role->value] as $action) {
+            if ($focus->activateAction($action, null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * The action scope its items name: "win" for a window's bar, "app" for the default bar.
      * @var string
@@ -210,6 +236,14 @@ class GTKMenuBar
                 $this->session->post(new MenuToggled($window, $item->id, $value->getBoolean()));
             });
             $this->toggles[$item->id] = $action;
+
+            return $action;
+        }
+
+        if ($item->role?->isEdit() === true) {
+            $action = GSimpleAction::new($item->id, null);
+            // The bar's window, or for the app's default bar the window the user is in.
+            g_signal_connect($action, 'activate', fn () => self::edit($this->parent ?? $this->session->application()->getActiveWindow(), $item->role));
 
             return $action;
         }

@@ -33,6 +33,22 @@ const TEST_MENUS = [
             ['id' => 'tools.measure', 'label' => 'Measure'],
         ]],
     ],
+    'editing' => [
+        ['label' => 'App', 'items' => [
+            ['role' => 'quit', 'label' => 'Quit', 'hotkey' => 'q'],
+        ]],
+        ['label' => 'Edit', 'items' => [
+            ['role' => 'undo', 'label' => 'Undo'],
+            ['role' => 'redo', 'label' => 'Redo'],
+            ['separator' => true],
+            ['role' => 'cut', 'label' => 'Cut'],
+            ['role' => 'copy', 'label' => 'Copy'],
+            ['role' => 'paste', 'label' => 'Paste'],
+            ['role' => 'select-all', 'label' => 'Select All'],
+            ['separator' => true],
+            ['id' => 'edit.find', 'label' => 'Find'],
+        ]],
+    ],
 ];
 
 /**
@@ -123,6 +139,32 @@ function pumpFor(float $seconds): void
     }
 }
 
+/**
+ * Pump until $area's layout has settled: its window is mapped, its scroll adjustments read the
+ * same value, upper and page size on two pumps in a row, and the area holds no relayout of its
+ * own (isSettling()); say whether that happened within $seconds.
+ */
+function settled(Jovian\Toolkits\GTK\Primitives\GTKTextArea $area, float $seconds = 3.0): bool
+{
+    $pump = new ToolkitPump(session());
+    $until = microtime(true) + $seconds;
+    $previous = null;
+    while (microtime(true) < $until) {
+        $pump->sleep(10_000_000);
+        [$horizontal, $vertical] = [$area->native()->getHadjustment(), $area->native()->getVadjustment()];
+        $now = [
+            $horizontal->getValue(), $horizontal->getUpper(), $horizontal->getPageSize(),
+            $vertical->getValue(), $vertical->getUpper(), $vertical->getPageSize(),
+        ];
+        if ($area->native()->getMapped() && ! $area->isSettling() && $now === $previous) {
+            return true;
+        }
+        $previous = $now;
+    }
+
+    return false;
+}
+
 /** @return list<Surface\Contracts\Drawing\SurfaceKind> A dmabuf surface, after the GL context, where GTK can import one (Linux, GTK 4.14+). */
 function gtkDmabufKinds(): array
 {
@@ -144,10 +186,10 @@ function inputFrame(): \Surface\HumanInput\InputFrame
 }
 
 /** A gtk input engine on the shared driver's session, connected; let go by letGoOfInput(). */
-function gtkInput(?Closure $button = null, ?Closure $active = null, ?Closure $inverted = null): \Jovian\Toolkits\GTK\Input\GTKInputEngine
+function gtkInput(?Closure $active = null, ?Closure $inverted = null): \Jovian\Toolkits\GTK\Input\GTKInputEngine
 {
     session();
-    $engine = new \Jovian\Toolkits\GTK\Input\GTKInputEngine(inputFrame(), driver(), $button, $active, $inverted);
+    $engine = new \Jovian\Toolkits\GTK\Input\GTKInputEngine(inputFrame(), driver(), $active, $inverted);
     $GLOBALS['gtk_input_engines'][] = $engine;
 
     return $engine->connect();
@@ -177,7 +219,13 @@ function controllerOf(\Jovian\Toolkits\GTK\Input\GTKInputEngine $engine, string 
 /** The hardware keycode GTK reports for a key position here: the macOS key code, or the evdev code + 8. */
 function keycodeOf(string $position): int
 {
-    [$mac, $evdev] = ['a' => [0x00, 30], 'q' => [0x0C, 16], 'shift' => [0x38, 42], 'rshift' => [0x3C, 54]][$position];
+    [$mac, $evdev] = ['a' => [0x00, 30], 'q' => [0x0C, 16], 'shift' => [0x38, 42], 'rshift' => [0x3C, 54], 'e' => [0x0E, 18]][$position];
 
     return PHP_OS_FAMILY === 'Darwin' ? $mac : $evdev + 8;
+}
+
+/** Activate an item the way its menu does: through the window's "win" action. */
+function choose(Jovian\Toolkits\GTK\Windows\GTKWindow $window, string $id): void
+{
+    expect($window->native()->activateAction("win.{$id}", null))->toBeTrue();
 }

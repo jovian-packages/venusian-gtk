@@ -82,6 +82,8 @@ class GTKSession extends BridgedToolkitSession
             throw new BridgeException('GTK on macOS needs ext-appkit: GTK runs on NSApplication there, and bringing the app forward is an AppKit call.');
         }
 
+        // GTK names the X11 WM_CLASS after the program name; the desktop file's StartupWMClass is the app id.
+        g_set_prgname($this->application_id);
         $this->application = GtkApplication::new(
             $this->application_id,
             $this->unique ? GApplicationFlags::DEFAULT_FLAGS : GApplicationFlags::NON_UNIQUE,

@@ -20,12 +20,6 @@ function hotkey(string $key): string
     return (PHP_OS_FAMILY === 'Darwin' ? '<Meta>' : '<Control>').$key;
 }
 
-/** Activate an item the way its menu does: through the window's "win" action. */
-function choose(Jovian\Toolkits\GTK\Windows\GTKWindow $window, string $id): void
-{
-    expect($window->native()->activateAction("win.{$id}", null))->toBeTrue();
-}
-
 it('builds the profile into a model with sections, actions and accelerators', function (): void {
     $window = driver()->open('main', 320, 200, driver()->profile('main'));
     $bar = $window->menuBar();
