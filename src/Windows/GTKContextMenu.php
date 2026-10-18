@@ -52,7 +52,7 @@ final class GTKContextMenu
     public function popupAt(GtkWidget $parent, float $x, float $y): void
     {
         $this->popover->setParent($parent);
-        $this->popover->setPointingTo((int) round($x), (int) round($y), 1, 1);
+        $this->popover->setPointingTo(new \GdkRectangle((int) round($x), (int) round($y), 1, 1));
         $this->popover->popup();
     }
 

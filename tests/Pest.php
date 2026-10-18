@@ -227,5 +227,57 @@ function keycodeOf(string $position): int
 /** Activate an item the way its menu does: through the window's "win" action. */
 function choose(Jovian\Toolkits\GTK\Windows\GTKWindow $window, string $id): void
 {
-    expect($window->native()->activateAction("win.{$id}", null))->toBeTrue();
+    expect($window->native()->activateActionVariant("win.{$id}", null))->toBeTrue();
+}
+
+/** A text buffer's whole text, hidden characters left out. */
+function bufferText(GtkTextBuffer $buffer): string
+{
+    return $buffer->getText($buffer->getStartIter(), $buffer->getEndIter(), false) ?? '';
+}
+
+/** The iter at $line's start (GTK's buffer end past the last line). */
+function lineIter(GtkTextBuffer $buffer, int $line): GtkTextIter
+{
+    $buffer->getIterAtLine($iter, $line);
+
+    return $iter;
+}
+
+/** The iter at $offset in $line (GTK's line end past it). */
+function lineOffsetIter(GtkTextBuffer $buffer, int $line, int $offset): GtkTextIter
+{
+    $buffer->getIterAtLineOffset($iter, $line, $offset);
+
+    return $iter;
+}
+
+/**
+ * ($x, $y) in $from's coordinates in $to's, by gtk_widget_compute_point.
+ *
+ * @return array{float, float}
+ */
+function widgetPoint(GtkWidget $from, GtkWidget $to, float $x, float $y): array
+{
+    expect($from->computePoint($to, new GraphenePoint($x, $y), $point))->toBeTrue();
+
+    return [$point->x, $point->y];
+}
+
+/**
+ * The origin of $widget's bounds in its own coordinates: its border box's corner.
+ *
+ * @return array{float, float}
+ */
+function boundsOrigin(GtkWidget $widget): array
+{
+    expect($widget->computeBounds($widget, $bounds))->toBeTrue();
+
+    return [$bounds->origin->x, $bounds->origin->y];
+}
+
+/** Whether GTK has a media backend: without one its media file is the GtkNoMediaFile stand-in. */
+function mediaBackend(): bool
+{
+    return GtkMediaFile::new()->typeName() !== 'GtkNoMediaFile';
 }

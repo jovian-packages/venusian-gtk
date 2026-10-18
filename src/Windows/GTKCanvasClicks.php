@@ -81,8 +81,8 @@ final class GTKCanvasClicks
             return;
         }
         // GTK's widget coordinates start inside the border and padding; Surface measures from the border box.
-        [$px, $py] = $this->native->computePoint($native, $x, $y) ?? [$x, $y];
-        [$bx, $by] = $native->computeBounds($native) ?? [0.0, 0.0];
+        [$px, $py] = $this->native->computePoint($native, new \GraphenePoint($x, $y), $point) ? [$point->x, $point->y] : [$x, $y];
+        [$bx, $by] = $native->computeBounds($native, $bounds) ? [$bounds->origin->x, $bounds->origin->y] : [0.0, 0.0];
         $this->press = [$canvas, $x, $y, $px - $bx, $py - $by, $at ?? microtime(true)];
     }
 
@@ -122,12 +122,11 @@ final class GTKCanvasClicks
 
             return;
         }
-        $position = $event->getPosition();
-        if (is_null($position)) {
+        if (! $event->getPosition($sx, $sy)) {
             return;
         }
-        [$ox, $oy] = $this->native->getSurfaceTransform();
-        [$x, $y] = [$position[0] - $ox, $position[1] - $oy];
+        $this->native->getSurfaceTransform($ox, $oy);
+        [$x, $y] = [$sx - $ox, $sy - $oy];
         $primary = ($event instanceof GdkButtonEvent && self::primary($event->getButton(), $event->getModifierState()))
             || ($event instanceof GdkTouchEvent && $event->getEmulatingPointer());
         match (true) {

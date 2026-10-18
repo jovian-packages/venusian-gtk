@@ -20,9 +20,9 @@ function canvasPointIn(GTKWindow $window, TKPrimitive $primitive, float $x, floa
     for ($waited = 0; $primitive->native()->getWidth() === 0 && $waited < 60; $waited++) {
         pumpFor(0.05);
     }
-    [$bx, $by] = $primitive->native()->computeBounds($primitive->native());
+    [$bx, $by] = boundsOrigin($primitive->native());
 
-    return $primitive->native()->computePoint($window->native(), $x + $bx, $y + $by);
+    return widgetPoint($primitive->native(), $window->native(), $x + $bx, $y + $by);
 }
 
 /** @return list<CanvasClicked> the canvas clicks posted since the last read */

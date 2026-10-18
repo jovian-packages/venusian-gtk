@@ -187,7 +187,7 @@ it('edits a text area inside a scrolled window and posts TextChanged for edits o
     expect($area)->toBeInstanceOf(GTKTextArea::class)
         ->and($area->native())->toBeInstanceOf(\GtkScrolledWindow::class)
         ->and($area->textView()->getParent())->toBe($area->native())
-        ->and($area->textView()->getBuffer()->getText(0, -1))->toBe("one\ntwo")
+        ->and(bufferText($area->textView()->getBuffer()))->toBe("one\ntwo")
         ->and(viewMail(session()))->toBe([]);
 
     // A user edit: GTK wraps it in a user action, inside which a replace deletes, then inserts.
@@ -195,17 +195,17 @@ it('edits a text area inside a scrolled window and posts TextChanged for edits o
     // setText stands in for the user's edit; undo off keeps GTK's history from warning about it.
     g_object_set_property($buffer, 'enable-undo', false);
     $buffer->beginUserAction();
-    $buffer->setText('typed');
+    $buffer->setText('typed', -1);
     $buffer->endUserAction();
     expect($area->value())->toBe('typed')
         ->and(viewMail(session()))->toEqual([new TextChanged('main', 'm.notes', $area->uuid(), 'typed')]);
 
     // A change outside any user action posts on its own.
-    $buffer->setText('');
+    $buffer->setText('', -1);
     expect(viewMail(session()))->toEqual([new TextChanged('main', 'm.notes', $area->uuid(), '')]);
 
     $area->setValue('code')->setTextColor(Color::rgb(0, 0, 0))->setBackground(Color::rgb(255, 255, 255));
-    expect($area->textView()->getBuffer()->getText(0, -1))->toBe('code')
+    expect(bufferText($area->textView()->getBuffer()))->toBe('code')
         ->and($area->stylesheet())->toContain(".{$area->styleClass()} > textview > text { background-color: rgba(255, 255, 255, 1); background-image: none; color: rgba(0, 0, 0, 1); }")
         ->and(viewMail(session()))->toBe([]);
 });

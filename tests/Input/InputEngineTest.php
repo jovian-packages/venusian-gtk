@@ -211,7 +211,10 @@ it('reads points in the content area, below anything the window puts above it', 
     $window->present();
     pumpUntil(fn (): bool => $window->contentArea()->getHeight() === 70);
 
-    expect(GTKInputEngine::contentPoint($window->native(), $window->contentArea(), 5.0, 40.0))->toBe([5.0, 10.0]);
+    // GTK transforms points in graphene's single-precision floats.
+    [$x, $y] = GTKInputEngine::contentPoint($window->native(), $window->contentArea(), 5.0, 40.0);
+    expect($x)->toEqualWithDelta(5.0, 1e-4)
+        ->and($y)->toEqualWithDelta(10.0, 1e-4);
 });
 
 it('turns GTK\'s down-positive vertical scrolling round, ten pixels to a line', function (): void {

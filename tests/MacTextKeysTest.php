@@ -55,7 +55,7 @@ it('moves and deletes in a text area by document ends', function (): void {
     $window->present();
     pumpFor(0.2);
     $view = $area->textView();
-    $read = fn (): string => $view->getBuffer()->getText(0, -1);
+    $read = fn (): string => bufferText($view->getBuffer());
 
     GTKMacTextKeys::press($view, GTKMacTextKeys::DOWN, GDK_META_MASK);
     GTKMacTextKeys::press($view, GTKMacTextKeys::BACKSPACE, GDK_META_MASK);

@@ -45,7 +45,7 @@ class GTKMenuBar
             return false;
         }
         foreach (self::EDIT_ACTIONS[$role->value] as $action) {
-            if ($focus->activateAction($action, null)) {
+            if ($focus->activateActionVariant($action, null)) {
                 return true;
             }
         }

@@ -87,10 +87,10 @@ class GTKSession extends BridgedToolkitSession
         $this->application = GtkApplication::new(
             $this->application_id,
             $this->unique ? GApplicationFlags::DEFAULT_FLAGS : GApplicationFlags::NON_UNIQUE,
-        );
+        ) ?? throw new BridgeException("GTK made no application for the id '{$this->application_id}': GLib takes only a valid application id (reverse-DNS, see g_application_id_is_valid).");
         // activate() warns when nothing listens; the application has nothing to do on it.
         g_signal_connect($this->application, 'activate', fn () => null);
-        $this->application->register();
+        $this->application->register(null);
         $this->context = GMainContext::default();
     }
 

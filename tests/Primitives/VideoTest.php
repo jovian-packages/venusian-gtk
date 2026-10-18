@@ -65,7 +65,7 @@ it('plays a clip to the end and reports a missing file', function (): void {
 })->skip(function (): bool {
     session();
 
-    return ! gtk_media_backend_available();
+    return ! mediaBackend();
 }, 'no GTK media backend on this machine');
 
 it('refuses a video where GTK has no media backend', function (): void {
@@ -76,5 +76,5 @@ it('refuses a video where GTK has no media backend', function (): void {
 })->skip(function (): bool {
     session();
 
-    return gtk_media_backend_available();
+    return mediaBackend();
 }, 'this machine has a GTK media backend');

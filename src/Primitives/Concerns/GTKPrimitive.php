@@ -195,7 +195,7 @@ trait GTKPrimitive
      */
     protected function nativeSize(): array
     {
-        [, , $width, $height] = $this->native->computeBounds($this->native) ?? [0.0, 0.0, 0.0, 0.0];
+        [$width, $height] = $this->native->computeBounds($this->native, $bounds) ? [$bounds->size->width, $bounds->size->height] : [0.0, 0.0];
 
         return [(int) round($width), (int) round($height)];
     }

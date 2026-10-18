@@ -26,9 +26,9 @@ function windowPointIn(GTKWindow $window, TKPrimitive $primitive, float $x, floa
     for ($waited = 0; $primitive->native()->getWidth() === 0 && $waited < 60; $waited++) {
         pumpFor(0.05);
     }
-    [$bx, $by] = $primitive->native()->computeBounds($primitive->native());
+    [$bx, $by] = boundsOrigin($primitive->native());
 
-    return $primitive->native()->computePoint($window->native(), $x + $bx, $y + $by);
+    return widgetPoint($primitive->native(), $window->native(), $x + $bx, $y + $by);
 }
 
 /** @return list<object> the right-click mail posted since the last read */
@@ -56,7 +56,7 @@ it('posts window.right-clicked on content with no primitive, in content coordina
     for ($waited = 0; $window->contentArea()->getWidth() === 0 && $waited < 60; $waited++) {
         pumpFor(0.05);
     }
-    [$x, $y] = $window->contentArea()->computePoint($window->native(), 30.0, 40.0);
+    [$x, $y] = widgetPoint($window->contentArea(), $window->native(), 30.0, 40.0);
     takeMail(session());
     $window->rightClicks()->at($x, $y);
 
@@ -155,20 +155,22 @@ it('opens a primitive\'s context menu at the right click, after its mail, and po
         ['label' => 'Share', 'items' => [['label' => 'Copy Link']]],
     ]);
     [$x, $y] = windowPointIn($window, $go, 4.0, 5.0);
-    [$cx, $cy] = $window->native()->computePoint($window->contentArea(), $x, $y);
+    [$cx, $cy] = widgetPoint($window->native(), $window->contentArea(), $x, $y);
     takeMail(session());
 
     $opened = $window->rightClicks()->at($x, $y);
     $menu = $window->rightClicks()->openMenu();
     $shown = pumpUntil(fn (): bool => $menu->popover()->getMapped());
     $clicked = contextMail();
-    $menu->popover()->activateAction('ctx.share.copy-link', null);
+    $menu->popover()->activateActionVariant('ctx.share.copy-link', null);
     $chosen = contextMail();
+    $pointing = $menu->popover()->getPointingTo($rect);
 
     expect($opened)->toBeTrue()
         ->and($shown)->toBeTrue()
         ->and($menu->popover()->getParent())->toBe($window->contentArea())
-        ->and($menu->popover()->getPointingTo())->toBe([(int) round($cx), (int) round($cy), 1, 1])
+        ->and($pointing)->toBeTrue()
+        ->and([$rect->x, $rect->y, $rect->width, $rect->height])->toBe([(int) round($cx), (int) round($cy), 1, 1])
         ->and($clicked)->toBe(['view.right-clicked.main.m.go'])
         ->and($chosen)->toBe(['menu.activated.main.share.copy-link']);
     $menu->popover()->popdown();
@@ -183,7 +185,7 @@ it('opens the nearest group\'s menu when the primitive has none, and none on bar
     [$x, $y] = windowPointIn($window, $label, 2.0, 2.0);
     $opened = $window->rightClicks()->at($x, $y);
     $menu = $window->rightClicks()->openMenu();
-    $menu->popover()->activateAction('ctx.refresh', null);
+    $menu->popover()->activateActionVariant('ctx.refresh', null);
     $menu->popover()->popdown();
     takeMail(session());
     [$px, $py] = windowPointIn($window, $plain, 2.0, 2.0);

@@ -157,7 +157,7 @@ class GTKTextArea extends TKTextArea implements GTKView
             if ($this->applying) {
                 return;
             }
-            $this->nativeValueChanged($this->text_view->getBuffer()->getText(0, -1));
+            $this->nativeValueChanged($this->bufferText());
             // GTK moved the tags with the edit, or dropped them with the text they covered.
             $this->applied_lines = null;
             $this->applied_ranges = null;
@@ -237,10 +237,10 @@ class GTKTextArea extends TKTextArea implements GTKView
     protected function applyValue(string $value): void
     {
         $buffer = $this->text_view->getBuffer();
-        if ($buffer->getText(0, -1) === $value) {
+        if ($this->bufferText() === $value) {
             return;
         }
-        $this->relayout(fn () => $buffer->setText($value));
+        $this->relayout(fn () => $buffer->setText($value, -1));
         $this->line_tags = [];
         $this->range_tags = [];
         $this->applied_lines = [];
@@ -293,7 +293,8 @@ class GTKTextArea extends TKTextArea implements GTKView
             $this->line_tags = [];
             foreach ($backgrounds as $line => $color) {
                 $tag = $this->tag('paragraph-background', $color);
-                $buffer->applyTag($tag, $buffer->getIterAtLine($line), $buffer->getIterAtLine($line + 1) ?? $buffer->getEndIter());
+                // Past the last line GTK's iter is the buffer's end: the last line's tag runs to it.
+                $buffer->applyTag($tag, $this->lineIter($line), $this->lineIter($line + 1));
                 $this->line_tags[spl_object_id($tag)] = $tag;
             }
         });
@@ -320,8 +321,8 @@ class GTKTextArea extends TKTextArea implements GTKView
                     $tag = $this->tag($property, $color);
                     $buffer->applyTag(
                         $tag,
-                        $buffer->getIterAtLineOffset($style->line, $style->start),
-                        $buffer->getIterAtLineOffset($style->line, $style->start + $style->length),
+                        $this->lineOffsetIter($style->line, $style->start),
+                        $this->lineOffsetIter($style->line, $style->start + $style->length),
                     );
                     $this->range_tags[spl_object_id($tag)] = $tag;
                 }
@@ -333,21 +334,43 @@ class GTKTextArea extends TKTextArea implements GTKView
     {
         $buffer = $this->text_view->getBuffer();
         $this->quietly(fn () => $buffer->selectRange(
-            $buffer->getIterAtLine($first),
-            $buffer->getIterAtLineOffset($last, $this->lines()->length($last)),
+            $this->lineIter($first),
+            $this->lineOffsetIter($last, $this->lines()->length($last)),
         ));
+    }
+
+    /** The buffer's whole text, hidden characters left out. */
+    protected function bufferText(): string
+    {
+        $buffer = $this->text_view->getBuffer();
+
+        return $buffer->getText($buffer->getStartIter(), $buffer->getEndIter(), false) ?? '';
+    }
+
+    /** The iter at $line's start; past the last line, GTK's buffer end. */
+    protected function lineIter(int $line): \GtkTextIter
+    {
+        $this->text_view->getBuffer()->getIterAtLine($iter, $line);
+
+        return $iter;
+    }
+
+    /** The iter at $offset in $line; past the line's end, GTK's line end. */
+    protected function lineOffsetIter(int $line, int $offset): \GtkTextIter
+    {
+        $this->text_view->getBuffer()->getIterAtLineOffset($iter, $line, $offset);
+
+        return $iter;
     }
 
     protected function nativeSelectedLines(): array
     {
         $buffer = $this->text_view->getBuffer();
-        $bounds = $buffer->getSelectionBounds();
-        if (is_null($bounds)) {
+        if (! $buffer->getSelectionBounds($start, $end)) {
             $line = $buffer->getIterAtMark($buffer->getInsert())->getLine();
 
             return [$line, $line];
         }
-        [$start, $end] = $bounds;
         $last = $end->getLine();
         if ($end->getLineOffset() === 0 && $last > $start->getLine()) {
             $last--;
@@ -383,7 +406,7 @@ class GTKTextArea extends TKTextArea implements GTKView
     {
         $this->scrollWhenSettled(function () use ($line): void {
             $buffer = $this->text_view->getBuffer();
-            [$top] = $this->text_view->getLineYrange($buffer->getIterAtLine($line) ?? $buffer->getEndIter());
+            $this->text_view->getLineYrange($this->lineIter($line), $top, $height);
             $vertical = $this->scrolled->getVadjustment();
             $upper = $vertical->getUpper();
             $this->scrollAdjustmentsTo(

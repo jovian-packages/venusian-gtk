@@ -33,7 +33,8 @@ class GTKSlider extends TKSlider implements GTKView
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, float $min, float $max, float $value)
     {
         parent::__construct($name, $window, $parent, $placement, $min, $max, $value);
-        $this->adoptNative(\GtkScale::newWithRange(\GtkOrientation::HORIZONTAL, $this->min, $this->max, ($this->max - $this->min) / 100));
+        $this->adoptNative(\GtkScale::newWithRange(\GtkOrientation::HORIZONTAL, $this->min, $this->max, ($this->max - $this->min) / 100)
+            ?? throw new WindowException("Slider '{$this->path()}' cannot range {$this->min}..{$this->max}: GTK made no scale."));
         $this->widgetScale()->setDrawValue(false);
         $this->applyRange($this->min, $this->max);
         $this->applyValue($this->value);

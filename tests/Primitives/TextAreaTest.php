@@ -16,7 +16,7 @@ beforeEach(function (): void {
 /** Whether a tag at (line, offset) has $property set. */
 function tagged(GtkTextBuffer $buffer, int $line, int $offset, string $property): bool
 {
-    foreach ($buffer->getIterAtLineOffset($line, $offset)->getTags() as $tag) {
+    foreach (lineOffsetIter($buffer, $line, $offset)->getTags() as $tag) {
         if (g_object_get_property($tag, "{$property}-set")) {
             return true;
         }
@@ -46,7 +46,7 @@ it('tags line backgrounds and range colours, replaces them on the next set, and 
 
     $area->setValue("x\ny");
     expect(tagged($buffer, 0, 0, 'paragraph-background'))->toBeFalse()
-        ->and($buffer->getText(0, -1))->toBe("x\ny")
+        ->and(bufferText($buffer))->toBe("x\ny")
         ->and(viewMail(session()))->toBe([]);
 
     $window->present();
@@ -63,7 +63,7 @@ it('tags again the styles it was asked for before, after a user edit moved or dr
     // setText stands in for a user's replace-all paste; undo off keeps GTK's history from warning about it.
     g_object_set_property($buffer, 'enable-undo', false);
     $buffer->beginUserAction();
-    $buffer->setText("one\ntwo\nthree");
+    $buffer->setText("one\ntwo\nthree", -1);
     $buffer->endUserAction();
     $dropped = tagged($buffer, 1, 0, 'paragraph-background');
     $area->setLineBackgrounds([1 => $red]);
@@ -79,7 +79,7 @@ it('counts the lines a user edit brings back with CRLF as GTK does', function ()
     // setText stands in for a user's replace-all paste; undo off keeps GTK's history from warning about it.
     g_object_set_property($buffer, 'enable-undo', false);
     $buffer->beginUserAction();
-    $buffer->setText("one\r\ntwo");
+    $buffer->setText("one\r\ntwo", -1);
     $buffer->endUserAction();
     $area->setRangeStyles([new TextRangeStyle(1, 0, 3, foreground: Color::hex('#0000ff'))]);
 
@@ -93,14 +93,15 @@ it('selects lines and reads the selection back as lines', function (): void {
     $buffer = $area->textView()->getBuffer();
 
     $area->selectLines(1, 2);
-    [$from, $to] = $buffer->getSelectionBounds();
-    expect([$from->getOffset(), $to->getOffset()])->toBe([3, 12])
+    $selected = $buffer->getSelectionBounds($from, $to);
+    expect($selected)->toBeTrue()
+        ->and([$from->getOffset(), $to->getOffset()])->toBe([3, 12])
         ->and($area->selectedLines())->toBe([1, 2])
         ->and($area->caretLine())->toBe(1);
 
-    $buffer->selectRange($buffer->getIterAtLine(1), $buffer->getIterAtLine(2));   // "two\n"
+    $buffer->selectRange(lineIter($buffer, 1), lineIter($buffer, 2));   // "two\n"
     expect($area->selectedLines())->toBe([1, 1]);
-    $buffer->selectRange($buffer->getIterAtLineOffset(0, 1), $buffer->getIterAtLineOffset(0, 1));
+    $buffer->selectRange(lineOffsetIter($buffer, 0, 1), lineOffsetIter($buffer, 0, 1));
     expect($area->selectedLines())->toBe([0, 0])
         ->and(viewMail(session()))->toBe([]);
 });

@@ -143,12 +143,11 @@ final class GTKRightClicks
 
             return;
         }
-        $position = $event->getPosition();
-        if (is_null($position)) {
+        if (! $event->getPosition($sx, $sy)) {
             return;
         }
-        [$ox, $oy] = $this->native->getSurfaceTransform();
-        [$x, $y] = [$position[0] - $ox, $position[1] - $oy];
+        $this->native->getSurfaceTransform($ox, $oy);
+        [$x, $y] = [$sx - $ox, $sy - $oy];
         if (($type === GdkEventType::BUTTON_PRESS || $type === GdkEventType::TOUCH_BEGIN) && $primary) {
             $this->pressed($x, $y);
         } elseif ($type === GdkEventType::MOTION_NOTIFY || $type === GdkEventType::TOUCH_UPDATE) {
@@ -190,7 +189,7 @@ final class GTKRightClicks
                 return $this->primitive($primitive, $widget, $x, $y);
             }
             if ($widget === $this->content) {
-                [$cx, $cy] = $this->native->computePoint($this->content, $x, $y) ?? [$x, $y];
+                [$cx, $cy] = $this->point($this->content, $x, $y);
                 $this->session->post(new WindowRightClicked($this->window->name(), $cx, $cy));
 
                 return false;
@@ -198,6 +197,16 @@ final class GTKRightClicks
         }
 
         return false;
+    }
+
+    /**
+     * A point in the window's coordinates in $widget's; as given when they share no ancestor.
+     *
+     * @return array{float, float}
+     */
+    private function point(GtkWidget $widget, float $x, float $y): array
+    {
+        return $this->native->computePoint($widget, new \GraphenePoint($x, $y), $point) ? [$point->x, $point->y] : [$x, $y];
     }
 
     private function primitive(TKPrimitive $primitive, GtkWidget $native, float $x, float $y): bool
@@ -211,15 +220,15 @@ final class GTKRightClicks
         }
         // GTK's widget coordinates start inside the border and padding; Surface measures a primitive by
         // its border box, whose corner is the widget's bounds' origin in its own coordinates.
-        [$px, $py] = $this->native->computePoint($native, $x, $y) ?? [$x, $y];
-        [$bx, $by] = $native->computeBounds($native) ?? [0.0, 0.0];
+        [$px, $py] = $this->point($native, $x, $y);
+        [$bx, $by] = $native->computeBounds($native, $bounds) ? [$bounds->origin->x, $bounds->origin->y] : [0.0, 0.0];
         $this->session->post(new RightClicked($this->window->name(), $primitive->path(), $primitive->uuid(), $px - $bx, $py - $by));
         if (! $menu instanceof ContextMenu) {
             return false;
         }
 
         $this->menu?->popover()->popdown();
-        [$cx, $cy] = $this->native->computePoint($this->content, $x, $y) ?? [$x, $y];
+        [$cx, $cy] = $this->point($this->content, $x, $y);
         $this->menu = new GTKContextMenu($menu, $this->window->name(), $this->session);
         $this->menu->popupAt($this->content, $cx, $cy);
 

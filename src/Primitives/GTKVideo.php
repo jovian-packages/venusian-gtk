@@ -42,7 +42,8 @@ class GTKVideo extends TKVideo implements GTKView
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, ?string $file)
     {
-        if (! gtk_media_backend_available()) {
+        // With no media backend, GTK's media file is its GtkNoMediaFile stand-in.
+        if (\GtkMediaFile::new()->typeName() === 'GtkNoMediaFile') {
             throw new WindowException('TKVideo needs the GTK media backend (libgtk-4-media-gstreamer).');
         }
         parent::__construct($name, $window, $parent, $placement, $file);

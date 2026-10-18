@@ -242,7 +242,8 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
      */
     public static function contentPoint(GtkWidget $native, GtkWidget $content, float $x, float $y): array
     {
-        return $native->computePoint($content, $x, $y) ?? [$x, $y];
+        // gtk_widget_compute_point answers false when the widgets share no ancestor; the point stays as given.
+        return $native->computePoint($content, new \GraphenePoint($x, $y), $out) ? [$out->x, $out->y] : [$x, $y];
     }
 
     /** GDK modifier state as Surface modifiers: Super (Linux) and Meta (Command on macOS) are meta. */
@@ -421,8 +422,9 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
         if ($button === 0) {
             return null;
         }
-        [$sx, $sy] = $event->getPosition() ?? [0.0, 0.0];
-        [$ox, $oy] = $native->getSurfaceTransform();
+        // gdk_event_get_position answers false for an event with no position; GDK leaves x and y at 0.
+        $event->getPosition($sx, $sy);
+        $native->getSurfaceTransform($ox, $oy);
         [$x, $y] = self::contentPoint($native, $content, $sx - $ox, $sy - $oy);
 
         return new SeenEvent(SeenKind::Button, $name, x: $x, y: $y, button: $button, down: $down);

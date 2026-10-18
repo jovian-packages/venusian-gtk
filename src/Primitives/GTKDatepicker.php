@@ -116,7 +116,8 @@ class GTKDatepicker extends TKDatepicker implements GTKView
         if (is_null($date)) {
             return;
         }
-        $day = \GDateTime::newLocal((int) $date->format('Y'), (int) $date->format('n'), (int) $date->format('j'), 0, 0, 0.0);
+        $day = \GDateTime::newLocal((int) $date->format('Y'), (int) $date->format('n'), (int) $date->format('j'), 0, 0, 0.0)
+            ?? throw new WindowException("Datepicker '{$this->path()}' cannot show {$date->format('Y-m-d')}: GLib made no local date.");
         $this->quietly(fn () => $this->widgetCalendar()->selectDay($day));
     }
 

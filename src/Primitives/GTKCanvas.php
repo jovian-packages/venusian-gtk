@@ -10,7 +10,6 @@ use Surface\Contracts\Drawing\SurfaceBorrower;
 use Surface\Contracts\Drawing\SurfaceKind;
 use Surface\Contracts\Framebuffers\DamageTrackingFramebuffer;
 use Surface\Contracts\Framebuffers\DmabufExportable;
-use Surface\Contracts\Framebuffers\Region;
 use Surface\Contracts\Windows\Primitives\Placement;
 use Surface\Contracts\Windows\WindowException;
 use Surface\Windows\Primitives\TKCanvas;
@@ -167,7 +166,7 @@ class GTKCanvas extends TKCanvas implements GTKView
         // A child added to a realized parent is realized with it: its context exists now, or GTK refused one.
         $context = $area->getContext();
         if (! $area->getRealized() || is_null($context) || ! is_null($area->getError())) {
-            $reason = $area->getError() ?? 'GTK made no GL context for the area';
+            $reason = $area->getError()?->getMessage() ?? 'GTK made no GL context for the area';
             $box->remove($area);
             $box->append($this->picture);
             \GdkGLContext::clearCurrent();
@@ -254,21 +253,31 @@ class GTKCanvas extends TKCanvas implements GTKView
         $same = ! is_null($previous) && $previous->getWidth() === $export['width'] && $previous->getHeight() === $export['height'];
         $fd = $export['fd'];
         try {
-            $texture = \GdkDmabufTextureBuilder::new()
-                ->setDisplay($this->native->getDisplay())
-                ->setWidth($export['width'])->setHeight($export['height'])
-                ->setFourcc($export['fourcc'] === self::DRM_FORMAT_ABGR8888 ? self::DRM_FORMAT_XBGR8888 : $export['fourcc'])
-                ->setModifier($export['modifier'])
-                ->setPremultiplied(false)
-                ->setNPlanes(1)
-                ->setFd(0, $fd)->setStride(0, $export['stride'])->setOffset(0, $export['offset'])
-                ->setUpdateTexture($same ? $previous : null)
-                ->build(fn () => $frame->releaseDmabuf($fd));
-        } catch (\GError|\GtkException|\ValueError $failure) {
+            $builder = \GdkDmabufTextureBuilder::new();
+            $builder->setDisplay($this->native->getDisplay());
+            $builder->setWidth($export['width']);
+            $builder->setHeight($export['height']);
+            $builder->setFourcc($export['fourcc'] === self::DRM_FORMAT_ABGR8888 ? self::DRM_FORMAT_XBGR8888 : $export['fourcc']);
+            $builder->setModifier($export['modifier']);
+            $builder->setPremultiplied(false);
+            $builder->setNPlanes(1);
+            $builder->setFd(0, $fd);
+            $builder->setStride(0, $export['stride']);
+            $builder->setOffset(0, $export['offset']);
+            $builder->setUpdateTexture($same ? $previous : null);
+            // GTK answers an import it cannot make with a GError, or with NULL and a critical.
+            $texture = $builder->build(fn () => $frame->releaseDmabuf($fd));
+        } catch (\GError|\ValueError $failure) {
             // Nothing holds the export now: it goes back at once.
             $frame->releaseDmabuf($fd);
 
             throw new WindowException("Canvas '{$this->path()}' cannot show the dmabuf: GTK refused to import it ({$failure->getMessage()}).", previous: $failure);
+        }
+        if (is_null($texture)) {
+            // No texture, so GTK calls no destroy notify: the export goes back here.
+            $frame->releaseDmabuf($fd);
+
+            throw new WindowException("Canvas '{$this->path()}' cannot show the dmabuf: GTK made no texture from it.");
         }
         $this->picture->setPaintable($this->texture = $texture);
     }
@@ -357,7 +366,8 @@ class GTKCanvas extends TKCanvas implements GTKView
 
     protected function applyPixels(string $rgba8, int $width, int $height, array $damage): void
     {
-        $this->texture = \GdkMemoryTexture::new($width, $height, \GdkMemoryFormat::R8G8B8X8, $rgba8, $width * 4);
+        $this->texture = \GdkMemoryTexture::new($width, $height, \GdkMemoryFormat::R8G8B8X8, \GBytes::new($rgba8, strlen($rgba8)), $width * 4)
+            ?? throw new WindowException("Canvas '{$this->path()}' cannot show {$width}x{$height} pixels: GDK made no texture from them.");
         $this->picture->setPaintable($this->texture);
     }
 
@@ -367,14 +377,27 @@ class GTKCanvas extends TKCanvas implements GTKView
         $updates = ! is_null($previous) && $damage !== [] && \gtk_get_minor_version() >= 16
             && $previous->getWidth() === $width && $previous->getHeight() === $height;
 
-        $this->texture = $updates
-            ? \GdkMemoryTextureBuilder::new()
-                ->setBytes($address, $stride * $height)
-                ->setWidth($width)->setHeight($height)->setFormat(\GdkMemoryFormat::R8G8B8X8)->setStride($stride)
-                ->setUpdateTexture($previous)
-                ->setUpdateRegion(array_map(fn (Region $region): array => [$region->x, $region->y, $region->width, $region->height], $damage))
-                ->build()
-            : \GdkMemoryTexture::new($width, $height, \GdkMemoryFormat::R8G8B8X8, $address, $stride);
+        // The address is the frame's pixels, $stride * $height bytes: GLib copies them into the GBytes.
+        $bytes = \GBytes::new($address, $stride * $height)
+            ?? throw new WindowException("Canvas '{$this->path()}' cannot read its pixels: GLib made no bytes from the frame's address.");
+        if ($updates) {
+            $region = \CairoRegion::create();
+            foreach ($damage as $rect) {
+                $region->unionRectangle(new \GdkRectangle($rect->x, $rect->y, $rect->width, $rect->height));
+            }
+            $builder = \GdkMemoryTextureBuilder::new();
+            $builder->setBytes($bytes);
+            $builder->setWidth($width);
+            $builder->setHeight($height);
+            $builder->setFormat(\GdkMemoryFormat::R8G8B8X8);
+            $builder->setStride($stride);
+            $builder->setUpdateTexture($previous);
+            $builder->setUpdateRegion($region);
+            $texture = $builder->build();
+        } else {
+            $texture = \GdkMemoryTexture::new($width, $height, \GdkMemoryFormat::R8G8B8X8, $bytes, $stride);
+        }
+        $this->texture = $texture ?? throw new WindowException("Canvas '{$this->path()}' cannot show {$width}x{$height} pixels: GDK made no texture from them.");
 
         $this->picture->setPaintable($this->texture);
     }
