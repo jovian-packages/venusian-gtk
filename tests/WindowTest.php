@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Surface\Contracts\Windows\Mail\WindowCloseRequested;
 use Surface\Contracts\Windows\Mail\WindowClosed;
 use Surface\Contracts\Windows\Mail\WindowFocused;
 use Surface\Contracts\Windows\WindowException;
@@ -57,6 +58,35 @@ it('closes once, posts WindowClosed once, and is gone afterwards', function (): 
         ->and($window->isOpen())->toBeFalse()
         ->and(driver()->has('main'))->toBeFalse()
         ->and(fn () => $window->title())->toThrow(WindowException::class, 'closed');
+});
+
+it('keeps a confirming window open on the user close and posts WindowCloseRequested', function (): void {
+    $window = driver()->open('main', 320, 200)->present();
+    pumpFor(0.1);
+    takeMail(session());
+    $closing = fn (): array => array_values(array_filter(takeMail(session()), fn ($m) => $m instanceof WindowClosed || $m instanceof WindowCloseRequested));
+
+    expect($window->confirmClose())->toBe($window)
+        ->and($window->isConfirmingClose())->toBeTrue();
+
+    $window->native()->close();
+    pumpFor(0.05);
+    expect($closing())->toEqual([new WindowCloseRequested('main')])
+        ->and($window->isOpen())->toBeTrue();
+
+    $window->close();
+    expect($closing())->toEqual([new WindowClosed('main')])
+        ->and($window->isOpen())->toBeFalse();
+});
+
+it('closes on the user close when it does not confirm close', function (): void {
+    $window = driver()->open('main', 320, 200)->present();
+    pumpFor(0.1);
+    takeMail(session());
+    $window->native()->close();
+
+    expect(array_values(array_filter(takeMail(session()), fn ($m) => $m instanceof WindowClosed)))->toEqual([new WindowClosed('main')])
+        ->and($window->isOpen())->toBeFalse();
 });
 
 it('closes every window', function (): void {

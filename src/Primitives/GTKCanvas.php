@@ -3,8 +3,10 @@
 namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
+use Jovian\Toolkits\GTK\Input\GTKInputEngine;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Surface\Contracts\Windows\Mail\View\CanvasWheeled;
 use Surface\Contracts\Drawing\LentSurface;
 use Surface\Contracts\Drawing\SurfaceBorrower;
 use Surface\Contracts\Drawing\SurfaceKind;
@@ -50,6 +52,9 @@ class GTKCanvas extends TKCanvas implements GTKView
     /** The GL view while a GL context is lent; null otherwise. */
     private ?\GtkGLArea $area = null;
 
+    /** The wheel over the canvas, on both axes. */
+    private \GtkEventControllerScroll $scroll;
+
     /** Render callbacks the GL view has run, for tests. */
     private int $renders = 0;
 
@@ -75,12 +80,107 @@ class GTKCanvas extends TKCanvas implements GTKView
         $this->picture->setVexpand(true);
         $box->append($this->picture);
         $this->adoptNative($box);
+
+        // The controller's handler is held by the box, which this canvas holds: a weak reference breaks the cycle.
+        $self = \WeakReference::create($this);
+        $this->scroll = \GtkEventControllerScroll::new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
+        $this->connect($this->scroll, 'scroll', static function (\GtkEventControllerScroll $controller, float $dx, float $dy) use ($self): bool {
+            $canvas = $self->get();
+            if (is_null($canvas)) {
+                return false;
+            }
+
+            return $canvas->wheeled($dx, $dy, $controller->getUnit() === \GdkScrollUnit::SURFACE, $controller->getCurrentEvent()?->getModifierState() ?? 0);
+        });
+        $box->addController($this->scroll);
     }
 
     /** The picture the canvas's own framebuffers are shown in. */
     public function picture(): \GtkPicture
     {
         return $this->picture;
+    }
+
+    /** The controller the wheel over the canvas arrives on. */
+    public function scrollController(): \GtkEventControllerScroll
+    {
+        return $this->scroll;
+    }
+
+    /** A press on the canvas grabs focus while it is focusable: a GtkBox takes none by itself. */
+    private ?\GtkGestureClick $focus_click = null;
+
+    /** In the capture phase, so it runs before the window's Tab move: keeps Tab while the canvas takes it. */
+    private ?\GtkEventControllerKey $tab_keys = null;
+
+    /** The controller that keeps Tab, for tests; null until the canvas was first made focusable. */
+    public function tabKeys(): ?\GtkEventControllerKey
+    {
+        return $this->tab_keys;
+    }
+
+    /**
+     * The focusable property of the box and of the child it shows (the picture, or a lent GL area):
+     * a GtkBox moves Tab focus only among its children, so the child is the Tab stop. The click and
+     * Tab controllers are made on the first call and read the canvas's flags, so a later call
+     * changes only the properties.
+     */
+    protected function applyFocusable(bool $on, bool $takesTab): void
+    {
+        foreach ([$this->native, $this->picture, $this->area] as $widget) {
+            if (! is_null($widget)) {
+                g_object_set_property($widget, 'focusable', $on);
+            }
+        }
+        // A focused widget that stops being focusable keeps focus: a canvas that stops taking focus lets go, quietly.
+        $focus = $this->host()->focusTracker();
+        if (! $on && $focus->within($this)) {
+            $root = $this->host()->native();
+            $focus->quietly(static fn () => $root->setFocus(null));
+        }
+        if (! is_null($this->focus_click)) {
+            return;
+        }
+        // The controllers' handlers are held by the box, which this canvas holds: a weak reference breaks the cycle.
+        $self = \WeakReference::create($this);
+        $this->focus_click = \GtkGestureClick::new();
+        $this->focus_click->setButton(0);
+        $this->connect($this->focus_click, 'pressed', static function () use ($self): void {
+            $canvas = $self->get();
+            if (! is_null($canvas) && $canvas->isFocusable()) {
+                // The user's move: the window's focus tracker posts it.
+                $canvas->native()->grabFocus();
+            }
+        });
+        $this->native->addController($this->focus_click);
+        $this->tab_keys = \GtkEventControllerKey::new();
+        $this->tab_keys->setPropagationPhase(\GtkPropagationPhase::CAPTURE);
+        $this->connect($this->tab_keys, 'key-pressed', static fn (\GtkEventControllerKey $controller, int $keyval): bool => ($self->get()?->takesTab() ?? false) && in_array($keyval, [0xFF09, 0xFE20], true));
+        $this->native->addController($this->tab_keys);
+    }
+
+    /**
+     * The wheel over the canvas: CanvasWheeled while it watches the pointer, and the event is the
+     * canvas's — handled here (true), so an enclosing scroll view never scrolls with it. A canvas
+     * that was removed, is not watching, or is disabled itself or inside a group passes it on
+     * (false), to scroll whatever encloses it as before.
+     *
+     * @param  bool  $precise  The deltas are trackpad points (GdkScrollUnit::SURFACE), not wheel notches.
+     * @param  int  $state  The modifier state (GDK_*_MASK) held with it.
+     */
+    public function wheeled(float $dx, float $dy, bool $precise, int $state): bool
+    {
+        if ($this->isRemoved() || ! $this->isWatchingPointer()) {
+            return false;
+        }
+        for ($at = $this; ! is_null($at); $at = $at->parent()) {
+            if (! $at->isEnabled()) {
+                return false;
+            }
+        }
+        $this->session()->post(new CanvasWheeled($this->window->name(), $this->path(), $this->uuid, $dx, $dy, $precise, GTKInputEngine::modifiers($state)));
+
+        return true;
     }
 
     /** The GL view standing in for the picture while a GL context is lent. */
@@ -151,6 +251,8 @@ class GTKCanvas extends TKCanvas implements GTKView
         $area->setHasStencilBuffer(false);
         $area->setHexpand(true);
         $area->setVexpand(true);
+        // The shown child is the canvas's Tab stop.
+        g_object_set_property($area, 'focusable', $this->isFocusable());
         \g_signal_connect($area, 'render', function (\GtkGLArea $area, \GdkGLContext $context): bool {
             $this->renders++;
             $this->renderLent();

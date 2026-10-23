@@ -168,6 +168,8 @@ it('posts TextChanged for typing and TextSubmitted for enter, nothing for code',
         ->and(viewMail(session()))->toBe([]);
 
     $input->native()->getBuffer()->setText('abc', -1);
+    // GTK on macOS emits changed a second time for one typed character, with the text unchanged.
+    g_signal_emit_by_name($input->native(), 'changed');
     expect($input->value())->toBe('abc')
         ->and(viewMail(session()))->toEqual([new TextChanged('main', 'm.name', $input->uuid(), 'abc')]);
 

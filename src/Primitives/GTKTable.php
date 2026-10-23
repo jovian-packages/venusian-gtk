@@ -82,6 +82,11 @@ class GTKTable extends TKTable implements GTKView
         return $this->column_view;
     }
 
+    public function focusWidget(): \GtkWidget
+    {
+        return $this->column_view;
+    }
+
     /**
      * The selection model the column view shows.
      * @return \GtkSingleSelection

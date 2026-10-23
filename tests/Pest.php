@@ -25,7 +25,13 @@ const TEST_MENUS = [
         ]],
         ['label' => 'View', 'items' => [
             ['id' => 'grid', 'label' => 'Show Grid', 'toggle' => true, 'on' => false],
-            ['id' => 'view.refresh', 'label' => 'Refresh', 'hotkey' => 'R'],
+            ['id' => 'view.refresh', 'label' => 'Refresh', 'keys' => 'Primary+Shift+F5'],
+            ['id' => 'view.next', 'label' => 'Next Difference', 'keys' => 'Alt+Down'],
+            ['id' => 'view.tab', 'label' => 'Next Tab', 'keys' => 'Primary+]'],
+            ['id' => 'view.erase', 'label' => 'Erase', 'keys' => 'Primary+BACKSPACE'],
+            ['id' => 'view.locked', 'label' => 'Locked', 'enabled' => false, 'items' => [
+                ['id' => 'view.locked.item', 'label' => 'Item'],
+            ]],
         ]],
     ],
     'tools' => [
@@ -265,6 +271,23 @@ function widgetPoint(GtkWidget $from, GtkWidget $to, float $x, float $y): array
 }
 
 /**
+ * The window point of ($x, $y) from $primitive's border-box top-left, once the window is laid out.
+ * Shared by the canvas click and canvas pointer tests, which both speak in canvas coordinates.
+ *
+ * @return array{float, float}
+ */
+function canvasPointIn(GTKWindow $window, Surface\Contracts\Windows\Primitives\TKPrimitive $primitive, float $x, float $y): array
+{
+    $window->present();
+    for ($waited = 0; $primitive->native()->getWidth() === 0 && $waited < 60; $waited++) {
+        pumpFor(0.05);
+    }
+    [$bx, $by] = boundsOrigin($primitive->native());
+
+    return widgetPoint($primitive->native(), $window->native(), $x + $bx, $y + $by);
+}
+
+/**
  * The origin of $widget's bounds in its own coordinates: its border box's corner.
  *
  * @return array{float, float}
@@ -280,4 +303,20 @@ function boundsOrigin(GtkWidget $widget): array
 function mediaBackend(): bool
 {
     return GtkMediaFile::new()->typeName() !== 'GtkNoMediaFile';
+}
+
+/** The first label under $root (popovers included) that shows $text. */
+function labelIn(GtkWidget $root, string $text): ?GtkLabel
+{
+    if ($root instanceof GtkLabel && $root->getText() === $text) {
+        return $root;
+    }
+    for ($child = $root->getFirstChild(); ! is_null($child); $child = $child->getNextSibling()) {
+        $found = labelIn($child, $text);
+        if (! is_null($found)) {
+            return $found;
+        }
+    }
+
+    return null;
 }

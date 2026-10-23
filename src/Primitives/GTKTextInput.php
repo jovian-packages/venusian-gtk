@@ -15,8 +15,9 @@ use Surface\Windows\Primitives\TKPrimitiveGroup;
 use Surface\Windows\Primitives\TKTextInput;
 
 /**
- * A single-line input over GtkEntry. Each user-visible edit emits the entry's changed once
- * (a paste over a selection too, though the buffer sees a delete and an insert): TextChanged.
+ * A single-line input over GtkEntry. The entry's changed posts TextChanged when the text differs
+ * from the value last seen: on macOS GTK emits it twice for one typed character. A paste over a
+ * selection posts once, though the buffer sees a delete and an insert.
  * Enter emits activate: TextSubmitted. A secret input hides its characters.
  */
 class GTKTextInput extends TKTextInput implements GTKView
@@ -48,14 +49,20 @@ class GTKTextInput extends TKTextInput implements GTKView
             if ($this->applying) {
                 return;
             }
-            $this->nativeValueChanged($this->widgetEntry()->getBuffer()->getText());
+            $text = $this->widgetEntry()->getBuffer()->getText();
+            if ($text === $this->value) {
+                return;
+            }
+            $this->nativeValueChanged($text);
             $this->post(new TextChanged($this->window->name(), $this->path(), $this->uuid, $this->value));
         });
         $this->connect($this->native, 'activate', fn () => $this->post(new TextSubmitted($this->window->name(), $this->path(), $this->uuid, $this->value)));
         if (PHP_OS_FAMILY === 'Darwin') {
             // The entry's GtkText holds focus while it is edited; it is what the keybinding signals belong to.
-            $this->mac_keys = GTKMacTextKeys::attach($this->native, function (): ?\GtkWidget {
-                $focus = $this->window->native()->getFocus();
+            // The controller's handler is held by the widget, which this primitive holds: a weak reference breaks the cycle.
+            $self = \WeakReference::create($this);
+            $this->mac_keys = GTKMacTextKeys::attach($this->native, static function () use ($self): ?\GtkWidget {
+                $focus = $self->get()?->window->native()->getFocus();
 
                 return $focus?->typeName() === 'GtkText' ? $focus : null;
             });

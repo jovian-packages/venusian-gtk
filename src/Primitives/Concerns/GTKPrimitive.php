@@ -52,6 +52,28 @@ trait GTKPrimitive
         return $this->native;
     }
 
+    /** The widget that holds keyboard focus for this primitive: the native, or the view a scroll window wraps. */
+    public function focusWidget(): GtkWidget
+    {
+        return $this->native;
+    }
+
+    /** grab_focus on the focus widget, from code: the window's focus tracker posts nothing for it. */
+    protected function applyFocus(): bool
+    {
+        $taken = false;
+        $this->host()->focusTracker()->quietly(function () use (&$taken): void {
+            $taken = $this->focusWidget()->grabFocus();
+        });
+
+        return $taken;
+    }
+
+    protected function nativeHasFocus(): bool
+    {
+        return $this->host()->focusTracker()->holder() === $this;
+    }
+
     /**
      * The CSS class that scopes this primitive's style provider.
      * @return string
@@ -147,18 +169,50 @@ trait GTKPrimitive
 
     protected function applyVisible(bool $visible): void
     {
-        $this->native->setVisible($visible);
+        if ($visible) {
+            $this->native->setVisible(true);
+
+            return;
+        }
+        $this->movingFocusOff(fn () => $this->native->setVisible(false));
     }
 
     /**
-     * GTK sensitivity cascades: an insensitive container greys every widget inside it.
+     * Run $change, which takes this widget out of sight or out of the window. While focus is on it
+     * or inside it, GTK moves focus off only on its next frame, and code's move posts nothing: so
+     * the move is made here, inside quietly(), as GTK makes it (Tab forward from the focus widget,
+     * or no focus when nothing else takes it). GTK then has nothing left to move.
+     * @param Closure(): void $change
+     */
+    protected function movingFocusOff(Closure $change): void
+    {
+        $focus = $this->host()->focusTracker();
+        if (! $focus->within($this)) {
+            $change();
+
+            return;
+        }
+        $focus->quietly(function () use ($change, $focus): void {
+            $change();
+            $root = $this->host()->native();
+            if ((is_null($root->getFocus()) || $focus->within($this)) && ! $root->childFocus(\GtkDirectionType::TAB_FORWARD)) {
+                $root->setFocus(null);
+            }
+        });
+    }
+
+    /**
+     * GTK sensitivity cascades: an insensitive container greys every widget inside it. GTK moves
+     * focus off a focused widget made insensitive: code's move, so the focus tracker posts nothing.
      *
      * @param bool $enabled
      * @return void
      */
     protected function applyEnabled(bool $enabled): void
     {
-        $this->native->setSensitive($enabled);
+        $this->host()->focusTracker()->quietly(function () use ($enabled): void {
+            $this->native->setSensitive($enabled);
+        });
     }
 
     protected function applyBackground(?Color $color): void
@@ -202,7 +256,8 @@ trait GTKPrimitive
 
     /**
      * Disconnect every handler, let the concrete release what it holds, take the widget out of
-     * its container (or the window), and drop the style provider.
+     * its container (or the window), and drop the style provider. Focus on it or inside it moves
+     * off quietly, as a hide moves it.
      * @return void
      */
     protected function destroyNative(): void
@@ -215,11 +270,13 @@ trait GTKPrimitive
         $this->handlers = [];
         $this->releaseNative();
 
-        if (is_null($this->parent)) {
-            $this->host()->unmountContent($this->native);
-        } elseif ($this->parent instanceof GTKContainer) {
-            $this->parent->removeNative($this);
-        }
+        $this->movingFocusOff(function (): void {
+            if (is_null($this->parent)) {
+                $this->host()->unmountContent($this->native);
+            } elseif ($this->parent instanceof GTKContainer) {
+                $this->parent->removeNative($this);
+            }
+        });
 
         $this->dropStyle();
     }

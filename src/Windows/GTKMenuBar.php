@@ -3,6 +3,7 @@
 namespace Jovian\Toolkits\GTK\Windows;
 
 use GMenu;
+use GMenuItem;
 use GSimpleAction;
 use GSimpleActionGroup;
 use GtkApplication;
@@ -15,8 +16,10 @@ use Surface\Contracts\Windows\Mail\MenuToggled;
 use Surface\Contracts\Windows\Mail\QuitRequested;
 use Surface\Contracts\Windows\Menus\MenuRole;
 use Surface\Contracts\Windows\WindowException;
+use Surface\Windows\Menus\Accelerator;
 use Surface\Windows\Menus\MenuItem;
 use Surface\Windows\Menus\MenuProfile;
+use Surface\Windows\Menus\MenuStates;
 
 /**
  * A menu profile built once into a GMenu model and the actions its items name: "win"
@@ -75,6 +78,15 @@ class GTKMenuBar
      */
     protected array $toggles = [];
 
+    /** The own and effective state of each node. */
+    protected readonly MenuStates $states;
+
+    /** The bar widget, once a window asks for one (Linux). */
+    protected ?GtkPopoverMenuBar $widget = null;
+
+    /** While a child window is active: every item's action but the edit roles is disabled. */
+    protected bool $blocked = false;
+
     /**
      * @param GTKSession $session
      * @param MenuProfile $profile
@@ -92,9 +104,14 @@ class GTKMenuBar
         $this->scope = is_null($window) ? 'app' : 'win';
         $this->model = GMenu::new();
         $this->actions = GSimpleActionGroup::new();
+        $this->states = new MenuStates($profile);
 
         foreach ($profile->folders as $folder) {
-            $this->model->appendSubmenu($folder->label, $this->folder($folder));
+            $this->model->appendItem($this->folderItem($folder));
+        }
+
+        foreach (array_keys($profile->nodes()) as $id) {
+            $this->apply($id);
         }
     }
 
@@ -138,15 +155,65 @@ class GTKMenuBar
         }
     }
 
+    /** The GDK name of each accelerator key that types no character of its own name. */
+    public const array GDK_NAMES = [
+        'minus' => 'minus', 'equals' => 'equal', 'left_bracket' => 'bracketleft', 'right_bracket' => 'bracketright',
+        'backslash' => 'backslash', 'semicolon' => 'semicolon', 'apostrophe' => 'apostrophe', 'grave' => 'grave',
+        'comma' => 'comma', 'period' => 'period', 'slash' => 'slash',
+        'up' => 'Up', 'down' => 'Down', 'left' => 'Left', 'right' => 'Right', 'home' => 'Home', 'end' => 'End',
+        'page_up' => 'Page_Up', 'page_down' => 'Page_Down',
+        'space' => 'space', 'enter' => 'Return', 'tab' => 'Tab', 'escape' => 'Escape', 'backspace' => 'BackSpace', 'delete' => 'Delete',
+    ];
+
     /**
-     * The platform's menu hotkey: Command (GDK's Meta) on macOS, Control elsewhere. GTK's
-     * <Primary> is Control on every platform.
-     * @param string $hotkey
-     * @return string
+     * The GTK accelerator string: Command is GDK's Meta on macOS, Super is Super; GTK's <Primary>
+     * is Control on every platform, so the driver resolves Primary itself.
      */
-    public static function accelerator(string $hotkey): string
+    public static function accelerator(Accelerator $keys, bool $macos = PHP_OS_FAMILY === 'Darwin'): string
     {
-        return (PHP_OS_FAMILY === 'Darwin' ? '<Meta>' : '<Control>').strtolower($hotkey);
+        $key = $keys->key;
+        $name = self::GDK_NAMES[$key->value] ?? match (true) {
+            str_starts_with($key->value, 'digit_') => substr($key->value, 6),
+            str_starts_with($key->value, 'f') && strlen($key->value) > 1 => strtoupper($key->value),
+            default => $key->value,
+        };
+
+        return ($keys->command($macos) ? '<Meta>' : '').($keys->control($macos) ? '<Control>' : '').($keys->super($macos) ? '<Super>' : '')
+            .($keys->alt ? '<Alt>' : '').($keys->shift ? '<Shift>' : '').$name;
+    }
+
+    /**
+     * Set the state of a node; the node and the nodes below it show their effective state. Posts nothing.
+     * @throws WindowException
+     */
+    public function setItemEnabled(string $item, bool $enabled): void
+    {
+        $this->states->set($item, $enabled);
+        foreach ($this->states->subtree($item) as $id) {
+            $this->apply($id);
+        }
+    }
+
+    /** @throws WindowException */
+    public function isItemEnabled(string $item): bool
+    {
+        return $this->states->isEnabled($item);
+    }
+
+    /**
+     * Block the bar while a child window is active, or unblock it: every item's action but the
+     * edit roles is disabled, which also stops its accelerator; folders keep their state. The
+     * states do not change. Posts nothing.
+     */
+    public function block(bool $blocked): void
+    {
+        if ($blocked === $this->blocked) {
+            return;
+        }
+        $this->blocked = $blocked;
+        foreach (array_keys($this->profile->nodes()) as $id) {
+            $this->apply($id);
+        }
     }
 
     public function model(): GMenu
@@ -165,7 +232,14 @@ class GTKMenuBar
      */
     public function widget(): GtkPopoverMenuBar
     {
-        return GtkPopoverMenuBar::newFromModel($this->model);
+        if (is_null($this->widget)) {
+            $this->widget = GtkPopoverMenuBar::newFromModel($this->model);
+            foreach ($this->profile->folders as $folder) {
+                $this->apply($folder->id);
+            }
+        }
+
+        return $this->widget;
     }
 
     /**
@@ -207,21 +281,51 @@ class GTKMenuBar
             }
 
             if ($item->isFolder()) {
-                $section->appendSubmenu($item->label, $this->folder($item));
+                $section->appendItem($this->folderItem($item));
                 continue;
             }
 
             $section->append($item->label, "{$this->scope}.{$item->id}");
             $this->actions->addAction($this->actionFor($item));
 
-            if (! is_null($item->hotkey)) {
-                $this->accels["{$this->scope}.{$item->id}"] = self::accelerator($item->hotkey);
+            if (! is_null($item->keys)) {
+                $this->accels["{$this->scope}.{$item->id}"] = self::accelerator($item->keys);
             }
         }
 
         $menu->appendSection(null, $section);
 
         return $menu;
+    }
+
+    /** A folder as a menu item whose action attribute names its own action, which GTK's menu tracker reads its sensitivity from. */
+    protected function folderItem(MenuItem $folder): GMenuItem
+    {
+        $item = GMenuItem::new($folder->label, "{$this->scope}.{$folder->id}");
+        $item->setSubmenu($this->folder($folder));
+        $this->actions->addAction(GSimpleAction::new($folder->id, null));
+
+        return $item;
+    }
+
+    /**
+     * Show a node's effective state: its action, and for a top-level folder in the bar widget the
+     * bar's child at the folder's index, which GtkPopoverMenuBar does not bind to the action.
+     */
+    protected function apply(string $id): void
+    {
+        $node = $this->profile->nodes()[$id];
+        $effective = $this->states->effective($id)
+            && ! ($this->blocked && ! $node->isFolder() && $node->role?->isEdit() !== true);
+        $this->action($id)->setEnabled($effective);
+        $index = array_search($id, array_map(fn (MenuItem $folder): string => $folder->id, $this->profile->folders), true);
+        if ($index !== false && ! is_null($this->widget)) {
+            $child = $this->widget->getFirstChild();
+            for ($i = 0; $i < $index && ! is_null($child); $i++) {
+                $child = $child->getNextSibling();
+            }
+            $child?->setSensitive($effective);
+        }
     }
 
     protected function actionFor(MenuItem $item): GSimpleAction

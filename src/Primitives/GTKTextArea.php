@@ -132,7 +132,9 @@ class GTKTextArea extends TKTextArea implements GTKView
         $this->text_view = \GtkTextView::new();
         $this->text_view->setWrapMode(\GtkWrapMode::WORD_CHAR);
         if (PHP_OS_FAMILY === 'Darwin') {
-            $this->mac_keys = GTKMacTextKeys::attach($this->text_view, fn (): \GtkTextView => $this->text_view);
+            // The controller's handler is held by the view, which this primitive holds: a weak reference breaks the cycle.
+            $self = \WeakReference::create($this);
+            $this->mac_keys = GTKMacTextKeys::attach($this->text_view, static fn (): ?\GtkTextView => $self->get()?->text_view);
         }
         $this->scrolled = \GtkScrolledWindow::new();
         $this->scrolled->setPolicy(\GtkPolicyType::NEVER, \GtkPolicyType::AUTOMATIC);
@@ -199,6 +201,11 @@ class GTKTextArea extends TKTextArea implements GTKView
      * @return \GtkTextView
      */
     public function textView(): \GtkTextView
+    {
+        return $this->text_view;
+    }
+
+    public function focusWidget(): \GtkWidget
     {
         return $this->text_view;
     }

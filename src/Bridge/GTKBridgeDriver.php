@@ -3,14 +3,20 @@
 namespace Jovian\Toolkits\GTK\Bridge;
 
 use Jovian\Toolkits\GTK\Contracts\Bridge\GTKBridgeDriver as BridgeContract;
+use Jovian\Toolkits\GTK\Services\GTKClipboard;
+use Jovian\Toolkits\GTK\Services\GTKDesktop;
+use Jovian\Toolkits\GTK\Services\GTKDialogs;
 use Jovian\Toolkits\GTK\Windows\GTKMenuBar;
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
 use Surface\Bridge\ToolkitBridgeDriver;
 use Surface\Contracts\Bridge\BridgeException;
 use Surface\Contracts\Windows\Menus\MenuProfile as MenuProfileContract;
+use Surface\Contracts\Windows\ToolkitWindow;
 use Surface\Contracts\Windows\ToolkitWindowDriver;
 use Surface\Contracts\Windows\WindowException;
+use Surface\Windows\ChildWindows;
 use Surface\Windows\Menus\MenuProfile;
+use Surface\Windows\Menus\MenuStates;
 
 class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, ToolkitWindowDriver
 {
@@ -27,6 +33,15 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
     protected ?MenuProfile $default_menu = null;
 
     protected ?GTKMenuBar $default_bar = null;
+
+    /** The states of the default profile's nodes, kept for a default bar built later. */
+    protected ?MenuStates $default_states = null;
+
+    protected ?GTKDialogs $dialogs = null;
+
+    protected ?GTKClipboard $clipboard = null;
+
+    protected ?GTKDesktop $desktop = null;
 
     public function connect(): GTKSession
     {
@@ -50,13 +65,41 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
         return $id;
     }
 
-    public function open(string $name, int $width, int $height, ?MenuProfileContract $menu = null): GTKWindow
+    /** With a parent, the window is transient for it and modal, in its window group. */
+    public function open(string $name, int $width, int $height, ?MenuProfileContract $menu = null, ?ToolkitWindow $parent = null): GTKWindow
     {
         if (isset($this->windows[$name])) {
             throw new WindowException("A window named '{$name}' is already open.");
         }
 
-        return $this->windows[$name] = new GTKWindow($name, $this->connect(), $this, $width, $height, $this->concrete($menu));
+        if (! is_null($parent)) {
+            ChildWindows::check($this, $parent, $menu);
+            $this->dialogs()->refuseChild($parent);
+        }
+
+        return $this->windows[$name] = new GTKWindow($name, $this->connect(), $this, $width, $height, $this->concrete($menu), $parent);
+    }
+
+    /** Alert and file dialogs, modal to their parent. */
+    public function dialogs(): GTKDialogs
+    {
+        return $this->dialogs ??= new GTKDialogs($this, $this->connect());
+    }
+
+    /** The display's clipboard; GTK starts with the session, so the session connects first. */
+    public function clipboard(): GTKClipboard
+    {
+        $this->connect();
+
+        return $this->clipboard ??= new GTKClipboard();
+    }
+
+    /** GtkFileLauncher is GTK too: the session connects first. */
+    public function desktop(): GTKDesktop
+    {
+        $this->connect();
+
+        return $this->desktop ??= new GTKDesktop();
     }
 
     public function has(string $name): bool
@@ -93,6 +136,7 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
         }
 
         $this->default_menu = $menu;
+        $this->default_states = is_null($menu) ? null : new MenuStates($menu);
 
         if (! is_null($this->default_bar)) {
             $this->default_bar->removeFrom($this->session->application());
@@ -121,9 +165,11 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
     /**
      * macOS: put the default bar in the app bar, with no active window or for an active window
      * that has no bar of its own. Its items are "app" actions, so they work with no window.
+     * Blocked (a child window is active), every action but the edit roles is disabled.
+     * @param bool $blocked
      * @return void
      */
-    public function installDefaultMenuBar(): void
+    public function installDefaultMenuBar(bool $blocked = false): void
     {
         if (! self::appWideBar() || is_null($this->session)) {
             return;
@@ -138,11 +184,37 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
 
         if (is_null($this->default_bar)) {
             $this->default_bar = new GTKMenuBar($this->session, $this->default_menu, null, $this->about(), null);
+            foreach ($this->default_states->changes() as $id => $enabled) {
+                $this->default_bar->setItemEnabled($id, $enabled);
+            }
             $this->default_bar->addTo($application);
         }
 
+        $this->default_bar->block($blocked);
         $this->default_bar->setAccelerators(true);
         $application->setMenubar($this->default_bar->model());
+    }
+
+    /**
+     * Set the state of a node of the default profile, on every platform; it shows where a default
+     * bar shows (macOS), and a bar built later starts from it. Posts nothing.
+     * @throws WindowException
+     */
+    public function setItemEnabled(string $item, bool $enabled): void
+    {
+        $this->defaultStates()->set($item, $enabled);
+        $this->default_bar?->setItemEnabled($item, $enabled);
+    }
+
+    /** @throws WindowException */
+    public function isItemEnabled(string $item): bool
+    {
+        return $this->defaultStates()->isEnabled($item);
+    }
+
+    protected function defaultStates(): MenuStates
+    {
+        return $this->default_states ?? throw new WindowException('No default menu bar profile is set.');
     }
 
     /**

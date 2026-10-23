@@ -24,11 +24,14 @@ use Surface\Contracts\Windows\Primitives\TKScrollView;
 use Surface\Contracts\Windows\Primitives\TKSeparator;
 use Surface\Contracts\Windows\Primitives\TKSlider;
 use Surface\Contracts\Windows\Primitives\TKSpinner;
+use Surface\Contracts\Windows\Primitives\TKSplitView;
+use Surface\Contracts\Windows\Primitives\TKTabView;
 use Surface\Contracts\Windows\Primitives\TKTable;
 use Surface\Contracts\Windows\Primitives\TKTextArea;
 use Surface\Contracts\Windows\Primitives\TKTextInput;
 use Surface\Contracts\Windows\Primitives\TKToggle;
 use Surface\Contracts\Windows\Primitives\TKToggleButton;
+use Surface\Contracts\Windows\Primitives\TKTree;
 use Surface\Contracts\Windows\Primitives\TKVideo;
 use Surface\Contracts\Windows\WindowException;
 use Surface\Windows\Primitives\TKPrimitiveGroup;
@@ -129,6 +132,11 @@ class GTKPrimitiveFactory implements PrimitiveFactory
         return new GTKTable($name, $this->window, self::parent($host), self::placement($host), $columns, $rows);
     }
 
+    public function mintTree(GroupContract $host, string $name, array $columns, array $nodes): TKTree
+    {
+        return new GTKTree($name, $this->window, self::parent($host), self::placement($host), $columns, $nodes);
+    }
+
     public function mintVideo(GroupContract $host, string $name, ?string $file): TKVideo
     {
         return new GTKVideo($name, $this->window, self::parent($host), self::placement($host), $file);
@@ -157,6 +165,16 @@ class GTKPrimitiveFactory implements PrimitiveFactory
     public function mintScrollView(GroupContract $host, string $name): TKScrollView
     {
         return new GTKScrollView($name, $this->window, self::parent($host), self::placement($host));
+    }
+
+    public function mintSplit(GroupContract $host, string $name, bool $horizontal): TKSplitView
+    {
+        return new GTKSplitView($name, $this->window, self::parent($host), self::placement($host), $horizontal);
+    }
+
+    public function mintTabs(GroupContract $host, string $name): TKTabView
+    {
+        return new GTKTabView($name, $this->window, self::parent($host), self::placement($host));
     }
 
     /**

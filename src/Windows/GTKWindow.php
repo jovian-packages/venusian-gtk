@@ -6,17 +6,22 @@ use GtkApplicationWindow;
 use GtkBox;
 use GtkOrientation;
 use GtkWidget;
+use GtkWindowGroup;
 use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
 use Jovian\Toolkits\GTK\Bridge\GTKSession;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\GTKPrimitiveFactory;
+use Surface\Contracts\Windows\Mail\WindowCloseRequested;
 use Surface\Contracts\Windows\Mail\WindowClosed;
 use Surface\Contracts\Windows\Mail\WindowFocused;
+use Surface\Contracts\Windows\Primitives\TKPrimitive;
 use Surface\Contracts\Windows\Primitives\TKPrimitiveGroup;
 use Surface\Contracts\Windows\ToolkitWindow;
 use Surface\Contracts\Windows\WindowException;
+use Surface\Windows\ChildWindows;
 use Surface\Windows\Menus\MenuProfile;
 use Surface\Windows\Primitives\HostsPrimitives;
+use WeakReference;
 
 class GTKWindow implements ToolkitWindow
 {
@@ -54,6 +59,28 @@ class GTKWindow implements ToolkitWindow
 
     protected GTKCanvasClicks $canvas_clicks;
 
+    protected GTKCanvasPointer $canvas_pointer;
+
+    protected GTKButtonKeys $button_keys;
+
+    protected GTKFocus $focus;
+
+    protected GTKWindowKeys $window_keys;
+
+    /** @var WeakReference<TKPrimitive>|null focused on each present(); weak, so a removed primitive is freed */
+    protected ?WeakReference $initial_focus = null;
+
+    /**
+     * A top-level window's own group: a modal child's grab then blocks only its parent, not every
+     * window of the app (GTK puts all windows in one default group).
+     */
+    protected ?GtkWindowGroup $group = null;
+
+    protected bool $confirming = false;
+
+    /** close() runs: its own close-request goes through while the window confirms close. */
+    protected bool $closing = false;
+
     public function __construct(
         protected readonly string $name,
         protected readonly GTKSession $session,
@@ -61,10 +88,19 @@ class GTKWindow implements ToolkitWindow
         int $width,
         int $height,
         ?MenuProfile $menu,
+        protected readonly ?ToolkitWindow $parent = null,
     ) {
         $this->window = GtkApplicationWindow::new($session->application());
         $this->window->setTitle($name);
         $this->window->setDefaultSize($width, $height);
+        if ($parent instanceof self) {
+            $this->window->setTransientFor($parent->native());
+            $this->window->setModal(true);
+            $parent->native()->getGroup()->addWindow($this->window);
+        } else {
+            $this->group = GtkWindowGroup::new();
+            $this->group->addWindow($this->window);
+        }
 
         $this->scaffold = GtkBox::new(GtkOrientation::VERTICAL, 0);
         $this->content = GtkBox::new(GtkOrientation::VERTICAL, 0);
@@ -73,8 +109,19 @@ class GTKWindow implements ToolkitWindow
         $this->scaffold->append($this->content);
         $this->window->setChild($this->scaffold);
 
-        // false lets GTK destroy the window; the mail goes first.
+        // false lets GTK destroy the window; the mail goes first. While the window confirms close,
+        // the user's request posts WindowCloseRequested and true keeps the window; close() goes through.
+        // A parent with an open child or dialog keeps the user's request silently: the grab that
+        // blocks it exists only once the child shows.
         g_signal_connect($this->window, 'close-request', function (): bool {
+            if (! $this->closing && (! is_null(ChildWindows::childOf($this->driver, $this)) || ! is_null($this->driver->dialogs()->openOn($this)))) {
+                return true;
+            }
+            if ($this->confirming && ! $this->closing) {
+                $this->session->post(new WindowCloseRequested($this->name));
+
+                return true;
+            }
             $this->closed();
 
             return false;
@@ -82,6 +129,12 @@ class GTKWindow implements ToolkitWindow
         g_signal_connect($this->window, 'notify::is-active', fn () => $this->activeChanged());
         $this->right_clicks = new GTKRightClicks($this, $this->window, $this->content, $session);
         $this->canvas_clicks = new GTKCanvasClicks($this, $this->window, $session);
+        // GTK runs a widget's newest controller first (gtkwidget.c prepends), so the pointer, added
+        // after the right clicks, sees a press before a context menu opens for it.
+        $this->canvas_pointer = new GTKCanvasPointer($this, $this->window, $session);
+        $this->button_keys = new GTKButtonKeys($this, $this->window);
+        $this->focus = new GTKFocus($this, $this->window);
+        $this->window_keys = new GTKWindowKeys($this, $this->window);
         $session->watchWindow($this);
 
         if (! is_null($menu)) {
@@ -106,12 +159,87 @@ class GTKWindow implements ToolkitWindow
         return $this;
     }
 
+    /** A child presents its parent first when the parent is not shown. */
     public function present(): static
     {
-        $this->live()->present();
+        $window = $this->live();
+        if ($this->parent instanceof self && ! $this->parent->native()->getVisible()) {
+            $this->parent->present();
+        }
+        // Showing the window focuses its first focusable widget: present() posts no focus mail.
+        $initial = $this->initial_focus?->get();
+        $this->focus->quietly(static function () use ($window, $initial): void {
+            $window->present();
+            if (! is_null($initial) && ! $initial->isRemoved() && method_exists($initial, 'focusWidget')) {
+                $initial->focusWidget()->grabFocus();
+            }
+        });
         $this->session->bringForward();
 
         return $this;
+    }
+
+    public function focused(): ?TKPrimitive
+    {
+        return $this->focus->holder();
+    }
+
+    /**
+     * @throws WindowException When $primitive belongs to another window.
+     */
+    public function setInitialFocus(?TKPrimitive $primitive): static
+    {
+        if (! is_null($primitive) && $primitive->window() !== $this) {
+            throw new WindowException("'{$primitive->path()}' is not in window '{$this->name}'.");
+        }
+        $this->initial_focus = is_null($primitive) ? null : WeakReference::create($primitive);
+
+        return $this;
+    }
+
+    /** The window's focus as primitives; primitives move focus through it. */
+    public function focusTracker(): GTKFocus
+    {
+        return $this->focus;
+    }
+
+    /** The bubble-phase key controller that posts WindowKeyPressed. */
+    public function windowKeys(): GTKWindowKeys
+    {
+        return $this->window_keys;
+    }
+
+    public function parent(): ?ToolkitWindow
+    {
+        return $this->parent;
+    }
+
+    public function confirmClose(bool $on = true): static
+    {
+        $this->confirming = $on;
+
+        return $this;
+    }
+
+    public function isConfirmingClose(): bool
+    {
+        return $this->confirming;
+    }
+
+    /**
+     * The user's close from the keyboard (Esc in a child with no cancel button): the same path as
+     * the window manager's close, through close-request.
+     * @return void
+     */
+    public function userClose(): void
+    {
+        $this->window?->close();
+    }
+
+    /** The window's default and cancel buttons on the keyboard. */
+    public function buttonKeys(): GTKButtonKeys
+    {
+        return $this->button_keys;
     }
 
     public function isOpen(): bool
@@ -139,9 +267,13 @@ class GTKWindow implements ToolkitWindow
         if (is_null($this->window)) {
             return;
         }
+        ChildWindows::childOf($this->driver, $this)?->close();
+        $this->driver->dialogs()->closeOn($this);
 
         if ($this->window->getRealized()) {
+            $this->closing = true;
             $this->window->close();
+            $this->closing = false;
             return;
         }
 
@@ -152,6 +284,7 @@ class GTKWindow implements ToolkitWindow
 
     public function setMenuBar(string $profile): static
     {
+        ChildWindows::refuseMenuBar($this);
         $this->useMenu(new GTKMenuBar($this->session, $this->driver->profile($profile), $this->name, $this->driver->about(), $this->live()));
 
         return $this;
@@ -167,6 +300,18 @@ class GTKWindow implements ToolkitWindow
     public function isToggled(string $item): bool
     {
         return $this->menuOrFail()->isToggled($item);
+    }
+
+    public function setItemEnabled(string $item, bool $enabled): static
+    {
+        $this->menuOrFail()->setItemEnabled($item, $enabled);
+
+        return $this;
+    }
+
+    public function isItemEnabled(string $item): bool
+    {
+        return $this->menuOrFail()->isItemEnabled($item);
     }
 
     /**
@@ -206,6 +351,12 @@ class GTKWindow implements ToolkitWindow
     public function canvasClicks(): GTKCanvasClicks
     {
         return $this->canvas_clicks;
+    }
+
+    /** The window's canvas presses, drags and releases, posted as mail. */
+    public function canvasPointer(): GTKCanvasPointer
+    {
+        return $this->canvas_pointer;
     }
 
     public function factory(): GTKPrimitiveFactory
@@ -295,7 +446,10 @@ class GTKWindow implements ToolkitWindow
         }
 
         if (GTKBridgeDriver::appWideBar()) {
-            if (is_null($this->menu)) {
+            if (! is_null($this->parent)) {
+                // A child has no bar: the default bar shows, blocked, so the parent's input stops there too.
+                $this->driver->installDefaultMenuBar(true);
+            } elseif (is_null($this->menu)) {
                 $this->driver->installDefaultMenuBar();
             } else {
                 $this->driver->showWindowMenuBar($this->menu);
@@ -316,7 +470,12 @@ class GTKWindow implements ToolkitWindow
             return;
         }
 
+        // GTK keeps a destroyed default widget as the default: clear it before the content goes.
+        $this->window->setDefaultWidget(null);
         $this->removeContent();
+        $this->button_keys->detach();
+        $this->focus->detach();
+        $this->window_keys->detach();
         $this->session->unwatchWindow($this);
         $this->window = null;
         $this->session->post(new WindowClosed($this->name));

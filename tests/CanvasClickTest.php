@@ -13,18 +13,6 @@ beforeEach(function (): void {
     takeMail(session());
 });
 
-/** The window point of ($x, $y) from $primitive's border-box top-left, once the window is laid out. */
-function canvasPointIn(GTKWindow $window, TKPrimitive $primitive, float $x, float $y): array
-{
-    $window->present();
-    for ($waited = 0; $primitive->native()->getWidth() === 0 && $waited < 60; $waited++) {
-        pumpFor(0.05);
-    }
-    [$bx, $by] = boundsOrigin($primitive->native());
-
-    return widgetPoint($primitive->native(), $window->native(), $x + $bx, $y + $by);
-}
-
 /** @return list<CanvasClicked> the canvas clicks posted since the last read */
 function canvasClicks(): array
 {

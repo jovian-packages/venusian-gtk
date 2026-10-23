@@ -76,14 +76,12 @@ final class GTKCanvasClicks
     public function pressed(float $x, float $y, ?float $at = null): void
     {
         $this->press = null;
-        [$canvas, $native] = $this->canvasAt($x, $y);
+        [$canvas, $native] = self::canvasAt($this->window, $this->native, $x, $y);
         if (is_null($canvas)) {
             return;
         }
-        // GTK's widget coordinates start inside the border and padding; Surface measures from the border box.
-        [$px, $py] = $this->native->computePoint($native, new \GraphenePoint($x, $y), $point) ? [$point->x, $point->y] : [$x, $y];
-        [$bx, $by] = $native->computeBounds($native, $bounds) ? [$bounds->origin->x, $bounds->origin->y] : [0.0, 0.0];
-        $this->press = [$canvas, $x, $y, $px - $bx, $py - $by, $at ?? microtime(true)];
+        [$cx, $cy] = self::canvasPoint($this->native, $native, $x, $y);
+        $this->press = [$canvas, $x, $y, $cx, $cy, $at ?? microtime(true)];
     }
 
     /** The pointer moved: past the drag threshold the press is a drag, not a click. */
@@ -102,7 +100,7 @@ final class GTKCanvasClicks
         if (is_null($press) || ($this->hold_cancels && microtime(true) - $press[5] >= $this->hold_s)) {
             return;
         }
-        [$canvas] = $this->canvasAt($x, $y);
+        [$canvas] = self::canvasAt($this->window, $this->native, $x, $y);
         if ($canvas === $press[0]) {
             $this->session->post(new CanvasClicked($this->window->name(), $canvas->path(), $canvas->uuid(), $press[3], $press[4]));
         }
@@ -140,18 +138,19 @@ final class GTKCanvasClicks
     /**
      * The enabled canvas under a window point, and its native: the first widget up from GTK's pick
      * that a canvas owns. Null when it, or one of its groups, is disabled, or no canvas is there.
+     * Shared with GTKCanvasPointer, which routes a press the same way.
      *
      * @return array{TKCanvas|null, GtkWidget|null}
      */
-    private function canvasAt(float $x, float $y): array
+    public static function canvasAt(GTKWindow $window, GtkApplicationWindow $native, float $x, float $y): array
     {
         $owners = [];
-        foreach ($this->window->registry()->all() as $primitive) {
+        foreach ($window->registry()->all() as $primitive) {
             if ($primitive instanceof TKCanvas && $primitive instanceof GTKView) {
                 $owners[spl_object_id($primitive->native())] = $primitive;
             }
         }
-        for ($widget = $this->native->pick($x, $y, GTK_PICK_INSENSITIVE | GTK_PICK_NON_TARGETABLE); ! is_null($widget); $widget = $widget->getParent()) {
+        for ($widget = $native->pick($x, $y, GTK_PICK_INSENSITIVE | GTK_PICK_NON_TARGETABLE); ! is_null($widget); $widget = $widget->getParent()) {
             $canvas = $owners[spl_object_id($widget)] ?? null;
             if (is_null($canvas)) {
                 continue;
@@ -166,5 +165,20 @@ final class GTKCanvasClicks
         }
 
         return [null, null];
+    }
+
+    /**
+     * A window point in $canvas's own coordinates, from its border-box top-left: GTK's widget
+     * coordinates start inside the border and padding, and Surface measures from the border box.
+     * Points outside the canvas come back outside it, negative or past its size.
+     *
+     * @return array{float, float}
+     */
+    public static function canvasPoint(GtkApplicationWindow $native, GtkWidget $canvas, float $x, float $y): array
+    {
+        [$px, $py] = $native->computePoint($canvas, new \GraphenePoint($x, $y), $point) ? [$point->x, $point->y] : [$x, $y];
+        [$bx, $by] = $canvas->computeBounds($canvas, $bounds) ? [$bounds->origin->x, $bounds->origin->y] : [0.0, 0.0];
+
+        return [$px - $bx, $py - $by];
     }
 }

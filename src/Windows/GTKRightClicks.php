@@ -231,6 +231,8 @@ final class GTKRightClicks
         [$cx, $cy] = $this->point($this->content, $x, $y);
         $this->menu = new GTKContextMenu($menu, $this->window->name(), $this->session);
         $this->menu->popupAt($this->content, $cx, $cy);
+        // The menu takes the pointer: a press the canvas owns ends here, with its release.
+        $this->window->canvasPointer()->interrupt();
 
         return true;
     }

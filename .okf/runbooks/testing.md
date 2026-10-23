@@ -16,7 +16,7 @@ sources:
 
 Suite drives the real toolkit: windows appear on screen. One driver per process (one application per process), built in `tests/Pest.php` with a `ControlPanel` container holding `config`, `toolkit-bridge`, `toolkit-windows`; helpers `driver()`, `session()`, `takeMail()` (empties the outbox), `viewMail()` (only primitive mail), `pumpFor($seconds)` and `pumpUntil($done)` (both through `ToolkitPump`, so latest-only mail flushes per pump as in the loop), `requireActive($window)`.[^pest]
 
-Covers: session lifecycle, budgeted wait, loop join (kqueue/epoll fd ends the toolkit sleep), open/close/focus mail, menu build, item/toggle/quit mail, About, default bar, profile swap; every primitive kind's widget, state, mail and removal (`tests/Primitives`), window and watched-view resize.
+Covers: session lifecycle, budgeted wait, loop join (kqueue/epoll fd ends the toolkit sleep), open/close/focus mail, menu build, item/toggle/quit mail, About, default bar, profile swap; every primitive kind's widget, state, mail and removal (`tests/Primitives`), window and watched-view resize; right clicks and context menus (`RightClickTest`), canvas clicks (`CanvasClickTest`) and the canvas pointer and wheel (`CanvasPointerTest`), all three driven by calling the window's own `rightClicks()` / `canvasClicks()` / `canvasPointer()` with window points from `canvasPointIn()`.
 
 Environment facts the tests account for:
 

@@ -224,3 +224,20 @@ it('takes a menu off the window once it closes, and closes an open one before op
     expect($second)->not->toBe($first)
         ->and([$gone, $closed])->toBe([true, true]);
 });
+
+it('builds a context menu folder with enabled false disabled, and the items below it', function (): void {
+    $window = driver()->open('main', 300, 200);
+    $go = $window->column('m')->button('go', 'Go')->setContextMenu([
+        ['label' => 'Share', 'enabled' => false, 'items' => [['label' => 'Copy Link']]],
+        ['label' => 'Download'],
+    ]);
+    [$x, $y] = windowPointIn($window, $go, 4.0, 5.0);
+    $window->rightClicks()->at($x, $y);
+    $menu = $window->rightClicks()->openMenu();
+
+    expect($menu->action('share')->getEnabled())->toBeFalse()
+        ->and($menu->action('share.copy-link')->getEnabled())->toBeFalse()
+        ->and($menu->action('download')->getEnabled())->toBeTrue()
+        ->and(labelIn($menu->popover(), 'Share')->isSensitive())->toBeFalse();
+    $menu->popover()->popdown();
+});
