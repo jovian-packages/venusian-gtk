@@ -138,6 +138,23 @@ it('posts the user\'s focus change once, after a focus() that posted nothing', f
     $main->close();
 });
 
+it('gives focus on a combo\'s options button to the combo, not its group', function (): void {
+    $main = focusWindow();
+    $combo = $main->view('m')->comboBox('path', '/tmp', ['/tmp', '/']);
+    pumpFor(0.2);
+    $main->view('m.first')->focus();
+    pumpFor(0.2);
+    expect(focusMail())->toBe([]);
+
+    // The user's click on the arrow: GTK focuses the menu button's own button.
+    $combo->optionsButton()->grabFocus();
+    pumpFor(0.2);
+
+    expect($main->native()->getFocus())->not->toBe($combo->entry())
+        ->and(focusMail())->toBe(['lost:m.first', 'gained:m.path']);
+    $main->close();
+});
+
 it('focuses the initial primitive on present, posting nothing', function (): void {
     $main = driver()->open('main', 480, 320);
     $column = $main->column('m');

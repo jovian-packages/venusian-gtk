@@ -6,7 +6,9 @@ use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Input\GTKInputEngine;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Jovian\Toolkits\GTK\Windows\GTKCanvasCoast;
 use Surface\Contracts\Windows\Mail\View\CanvasWheeled;
+use Surface\Contracts\Windows\Mail\View\ScrollPhase;
 use Surface\Contracts\Drawing\LentSurface;
 use Surface\Contracts\Drawing\SurfaceBorrower;
 use Surface\Contracts\Drawing\SurfaceKind;
@@ -52,8 +54,15 @@ class GTKCanvas extends TKCanvas implements GTKView
     /** The GL view while a GL context is lent; null otherwise. */
     private ?\GtkGLArea $area = null;
 
-    /** The wheel over the canvas, on both axes. */
+    /** The wheel over the canvas, on both axes, kinetic: gestures begin and end, a flick decelerates. */
     private \GtkEventControllerScroll $scroll;
+
+    /** Inside a gesture the device reported a begin for; whether it has posted yet. */
+    private bool $gesture = false;
+
+    private bool $gesture_posted = false;
+
+    private ?GTKCanvasCoast $coast = null;
 
     /** Render callbacks the GL view has run, for tests. */
     private int $renders = 0;
@@ -83,7 +92,10 @@ class GTKCanvas extends TKCanvas implements GTKView
 
         // The controller's handler is held by the box, which this canvas holds: a weak reference breaks the cycle.
         $self = \WeakReference::create($this);
-        $this->scroll = \GtkEventControllerScroll::new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
+        $this->scroll = \GtkEventControllerScroll::new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES | GTK_EVENT_CONTROLLER_SCROLL_KINETIC);
+        $this->connect($this->scroll, 'scroll-begin', static fn () => $self->get()?->gestureBegan());
+        $this->connect($this->scroll, 'scroll-end', static fn () => $self->get()?->gestureEnded());
+        $this->connect($this->scroll, 'decelerate', static fn (\GtkEventControllerScroll $controller, float $vx, float $vy) => $self->get()?->decelerated($vx, $vy));
         $this->connect($this->scroll, 'scroll', static function (\GtkEventControllerScroll $controller, float $dx, float $dy) use ($self): bool {
             $canvas = $self->get();
             if (is_null($canvas)) {
@@ -170,6 +182,80 @@ class GTKCanvas extends TKCanvas implements GTKView
      */
     public function wheeled(float $dx, float $dy, bool $precise, int $state): bool
     {
+        if (! $this->takesWheels()) {
+            return false;
+        }
+        $phase = ScrollPhase::NONE;
+        if ($this->gesture) {
+            $phase = $this->gesture_posted ? ScrollPhase::CHANGED : ScrollPhase::BEGAN;
+            $this->gesture_posted = true;
+        }
+        $this->session()->post(new CanvasWheeled($this->window->name(), $this->path(), $this->uuid, $dx, $dy, $precise, GTKInputEngine::modifiers($state), $phase));
+
+        return true;
+    }
+
+    /** scroll-begin: fingers down. A coast still running ends first. */
+    public function gestureBegan(): void
+    {
+        $this->endCoast();
+        $this->gesture = true;
+        $this->gesture_posted = false;
+    }
+
+    /** scroll-end: fingers up. ENDED, with no movement, for a gesture that posted. */
+    public function gestureEnded(): void
+    {
+        $posted = $this->gesture && $this->gesture_posted;
+        $this->gesture = false;
+        $this->gesture_posted = false;
+        if ($posted && $this->takesWheels()) {
+            $this->session()->post(new CanvasWheeled($this->window->name(), $this->path(), $this->uuid, 0.0, 0.0, true, GTKInputEngine::modifiers(0), ScrollPhase::ENDED));
+        }
+    }
+
+    /** decelerate: the flick's velocity in pixels per ms starts a coast the session pump ticks. */
+    public function decelerated(float $vx, float $vy): void
+    {
+        $this->endCoast();
+        if (! $this->takesWheels()) {
+            return;
+        }
+        $this->coast = new GTKCanvasCoast($this, $vx, $vy, GTKCanvasCoast::nowMs());
+        $this->session()->coast($this->coast);
+    }
+
+    /** The running coast; null when there is none. */
+    public function coast(): ?GTKCanvasCoast
+    {
+        return $this->coast?->done() === false ? $this->coast : null;
+    }
+
+    /** End a running coast with MOMENTUM_ENDED: a new gesture or a press on the canvas. */
+    public function endCoast(): void
+    {
+        $this->coast?->end();
+        $this->coast = null;
+    }
+
+    /** A coast step: MOMENTUM or MOMENTUM_ENDED, precise, no modifiers. */
+    public function coasted(float $dx, float $dy, ScrollPhase $phase): void
+    {
+        if ($this->takesWheels()) {
+            $this->session()->post(new CanvasWheeled($this->window->name(), $this->path(), $this->uuid, $dx, $dy, true, GTKInputEngine::modifiers(0), $phase));
+        }
+    }
+
+    /** A running coast ends with no mail: the canvas is going. */
+    protected function releaseNative(): void
+    {
+        $this->coast?->drop();
+        $this->coast = null;
+    }
+
+    /** Watching, not removed, enabled itself and through its groups. */
+    private function takesWheels(): bool
+    {
         if ($this->isRemoved() || ! $this->isWatchingPointer()) {
             return false;
         }
@@ -178,7 +264,6 @@ class GTKCanvas extends TKCanvas implements GTKView
                 return false;
             }
         }
-        $this->session()->post(new CanvasWheeled($this->window->name(), $this->path(), $this->uuid, $dx, $dy, $precise, GTKInputEngine::modifiers($state)));
 
         return true;
     }
@@ -460,10 +545,10 @@ class GTKCanvas extends TKCanvas implements GTKView
         return function_exists(PHP_OS_FAMILY === 'Darwin' ? 'CGLGetCurrentContext' : 'eglGetCurrentContext');
     }
 
-    /** Device pixels per application pixel on the widget's surface. */
+    /** Device pixels per application pixel on the widget's surface, fractional scales included; the integer factor before the surface exists. */
     protected function nativeScale(): float
     {
-        return (float) $this->native->getScaleFactor();
+        return $this->native->getNative()?->getSurface()?->getScale() ?? (float) $this->native->getScaleFactor();
     }
 
     protected function applyPixels(string $rgba8, int $width, int $height, array $damage): void

@@ -309,3 +309,24 @@ it('finds a divider handle at its laid-out rectangle, where the panes overlap it
         ->and($at($end / 2, $across))->toBeFalse()       // the middle of pane a
         ->and($at(paneSpan($split, 'c')[1] - 5, $across))->toBeFalse();
 })->with(['side by side' => true, 'stacked' => false]);
+
+it('inserts a tab before the one at an index, and posts no TabSelected', function (): void {
+    $window = driver()->open('main', 400, 300);
+    $tabs = $window->column('m')->tabs('tabs');
+    $tabs->addPage('one', 'One');
+    $tabs->addPage('two', 'Two');
+    $window->present();
+    pumpFor(0.1);
+    takeMail(session());
+
+    $tabs->addPage('first', 'First', 0);
+    $tabs->addPage('middle', 'Middle', 2);
+    pumpFor(0.05);
+
+    $notebook = $tabs->native();
+    $labels = array_map(fn (int $i): ?string => $notebook->getTabLabelText($notebook->getNthPage($i)), range(0, $notebook->getNPages() - 1));
+    expect($labels)->toBe(['First', 'One', 'Middle', 'Two'])
+        ->and($tabs->pages())->toBe(['first', 'one', 'middle', 'two'])
+        ->and(array_filter(takeMail(session()), fn (object $mail): bool => $mail instanceof TabSelected))->toBe([]);
+    $window->close();
+});

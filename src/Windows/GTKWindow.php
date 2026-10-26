@@ -14,6 +14,7 @@ use Jovian\Toolkits\GTK\Primitives\GTKPrimitiveFactory;
 use Surface\Contracts\Windows\Mail\WindowCloseRequested;
 use Surface\Contracts\Windows\Mail\WindowClosed;
 use Surface\Contracts\Windows\Mail\WindowFocused;
+use Surface\Contracts\Windows\Mail\WindowScaleChanged;
 use Surface\Contracts\Windows\Primitives\TKPrimitive;
 use Surface\Contracts\Windows\Primitives\TKPrimitiveGroup;
 use Surface\Contracts\Windows\ToolkitWindow;
@@ -34,6 +35,9 @@ class GTKWindow implements ToolkitWindow
      * @var GtkApplicationWindow|null
      */
     protected ?GtkApplicationWindow $window;
+
+    /** The surface scale last posted, or read at realize. */
+    private float $scale = 1.0;
 
     /**
      * Vertical box filling the window: the menu bar (Linux) above the content.
@@ -81,6 +85,12 @@ class GTKWindow implements ToolkitWindow
     /** close() runs: its own close-request goes through while the window confirms close. */
     protected bool $closing = false;
 
+    /**
+     * The window was inactive at the end of a pump. On X11 a popover's grab makes the window
+     * inactive and active again in one dispatch; that is no focus change and posts nothing.
+     */
+    protected bool $seen_inactive = true;
+
     public function __construct(
         protected readonly string $name,
         protected readonly GTKSession $session,
@@ -127,6 +137,17 @@ class GTKWindow implements ToolkitWindow
             return false;
         });
         g_signal_connect($this->window, 'notify::is-active', fn () => $this->activeChanged());
+        // The integer factor changes on the window, a fractional scale on its surface, which exists once realized.
+        $this->scale = (float) $this->window->getScaleFactor();
+        g_signal_connect($this->window, 'notify::scale-factor', fn () => $this->scaleChanged());
+        g_signal_connect($this->window, 'realize', function (): void {
+            $surface = $this->window?->getSurface();
+            if (is_null($surface)) {
+                return;
+            }
+            $this->scale = $surface->getScale();
+            g_signal_connect($surface, 'notify::scale', fn () => $this->scaleChanged());
+        });
         $this->right_clicks = new GTKRightClicks($this, $this->window, $this->content, $session);
         $this->canvas_clicks = new GTKCanvasClicks($this, $this->window, $session);
         // GTK runs a widget's newest controller first (gtkwidget.c prepends), so the pointer, added
@@ -140,6 +161,21 @@ class GTKWindow implements ToolkitWindow
         if (! is_null($menu)) {
             $this->useMenu(new GTKMenuBar($session, $menu, $name, $driver->about(), $this->window));
         }
+    }
+
+    /** The scale changed (another display, a display setting): WindowScaleChanged when it differs from the last posted. */
+    public function scaleChanged(): void
+    {
+        $window = $this->window;
+        if (is_null($window)) {
+            return;
+        }
+        $scale = $window->getSurface()?->getScale() ?? (float) $window->getScaleFactor();
+        if ($scale === $this->scale) {
+            return;
+        }
+        $this->scale = $scale;
+        $this->session->post(new WindowScaleChanged($this->name, $scale));
     }
 
     public function name(): string
@@ -302,6 +338,30 @@ class GTKWindow implements ToolkitWindow
         return $this->menuOrFail()->isToggled($item);
     }
 
+    public function setRadio(string $group, string $item): static
+    {
+        $this->menuOrFail()->setRadio($group, $item);
+
+        return $this;
+    }
+
+    public function radio(string $group): string
+    {
+        return $this->menuOrFail()->radio($group);
+    }
+
+    public function setItemLabel(string $item, string $label): static
+    {
+        $this->menuOrFail()->setItemLabel($item, $label);
+
+        return $this;
+    }
+
+    public function itemLabel(string $item): string
+    {
+        return $this->menuOrFail()->itemLabel($item);
+    }
+
     public function setItemEnabled(string $item, bool $enabled): static
     {
         $this->menuOrFail()->setItemEnabled($item, $enabled);
@@ -456,7 +516,18 @@ class GTKWindow implements ToolkitWindow
             }
         }
 
-        $this->session->post(new WindowFocused($this->name));
+        if ($this->seen_inactive) {
+            $this->seen_inactive = false;
+            $this->session->post(new WindowFocused($this->name));
+        }
+    }
+
+    /** End of a pump: an inactive window's next activation posts WindowFocused. */
+    public function settleActive(): void
+    {
+        if (! $this->isActive()) {
+            $this->seen_inactive = true;
+        }
     }
 
     /**

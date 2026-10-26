@@ -212,11 +212,14 @@ final class GTKRightClicks
     private function primitive(TKPrimitive $primitive, GtkWidget $native, float $x, float $y): bool
     {
         $menu = null;
+        $owner = null;
         for ($at = $primitive; ! is_null($at); $at = $at->parent()) {
             if (! $at->isEnabled()) {
                 return false;
             }
-            $menu ??= $at->contextMenu();
+            if (is_null($menu) && ! is_null($at->contextMenu())) {
+                [$menu, $owner] = [$at->contextMenu(), $at];
+            }
         }
         // GTK's widget coordinates start inside the border and padding; Surface measures a primitive by
         // its border box, whose corner is the widget's bounds' origin in its own coordinates.
@@ -229,7 +232,8 @@ final class GTKRightClicks
 
         $this->menu?->popover()->popdown();
         [$cx, $cy] = $this->point($this->content, $x, $y);
-        $this->menu = new GTKContextMenu($menu, $this->window->name(), $this->session);
+        // The owner keeps the user's toggle and radio choices: the next open shows them.
+        $this->menu = new GTKContextMenu($menu, $this->window->name(), $this->session, $owner);
         $this->menu->popupAt($this->content, $cx, $cy);
         // The menu takes the pointer: a press the canvas owns ends here, with its release.
         $this->window->canvasPointer()->interrupt();

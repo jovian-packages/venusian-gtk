@@ -12,12 +12,15 @@ use Jovian\Toolkits\GTK\Bridge\GTKSession;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKContainer;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\GTKFixed;
+use Jovian\Toolkits\GTK\Windows\GTKContextMenu;
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Surface\Contracts\Windows\Menus\ContextMenu as ContextMenuContract;
 use Surface\Contracts\Windows\Primitives\Align;
 use Surface\Contracts\Windows\Primitives\TKPrimitive;
 use Surface\Contracts\Windows\Styling\FontSpec;
 use Surface\Contracts\Windows\WindowException;
 use Surface\NutsAndBolts\Color;
+use Surface\Windows\Menus\ContextMenu;
 
 /**
  * The hooks every GTK primitive shares. The concrete builds its widget after the abstract's
@@ -72,6 +75,36 @@ trait GTKPrimitive
     protected function nativeHasFocus(): bool
     {
         return $this->host()->focusTracker()->holder() === $this;
+    }
+
+    /** The menu popupMenu() opened, while it shows; null otherwise. */
+    private ?GTKContextMenu $popup = null;
+
+    public function openPopup(): ?GTKContextMenu
+    {
+        return $this->popup?->popover()->getVisible() === true ? $this->popup : null;
+    }
+
+    /**
+     * Open $menu over the window's content, as a right click's menu is, pointing at ($x, $y) from
+     * the view's border-box corner (its bounds' origin). An owned canvas press ends first. GTK shows
+     * the popover and returns at once; false, opening nothing, while the window is not mapped.
+     */
+    protected function applyPopupMenu(ContextMenuContract $menu, float $x, float $y): bool
+    {
+        $window = $this->host();
+        if (! $window->native()->getMapped() || ! $this->native->getMapped() || ! $menu instanceof ContextMenu) {
+            return false;
+        }
+        $window->canvasPointer()->interrupt();
+        $content = $window->contentArea();
+        [$bx, $by] = $this->native->computeBounds($this->native, $bounds) ? [$bounds->origin->x, $bounds->origin->y] : [0.0, 0.0];
+        [$cx, $cy] = $this->native->computePoint($content, new \GraphenePoint($x + $bx, $y + $by), $point) ? [$point->x, $point->y] : [$x, $y];
+        $this->popup?->popover()->popdown();
+        $this->popup = new GTKContextMenu($menu, $window->name(), $this->session());
+        $this->popup->popupAt($content, $cx, $cy);
+
+        return true;
     }
 
     /**
@@ -268,6 +301,9 @@ trait GTKPrimitive
             }
         }
         $this->handlers = [];
+        // A menu popupMenu() opened goes with the primitive.
+        $this->popup?->popover()->popdown();
+        $this->popup = null;
         $this->releaseNative();
 
         $this->movingFocusOff(function (): void {

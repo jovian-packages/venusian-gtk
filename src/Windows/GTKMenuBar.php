@@ -10,8 +10,10 @@ use GtkApplication;
 use GtkPopoverMenuBar;
 use GtkWindow;
 use GVariant;
+use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
 use Jovian\Toolkits\GTK\Bridge\GTKSession;
 use Surface\Contracts\Windows\Mail\MenuActivated;
+use Surface\Contracts\Windows\Mail\MenuRadioChosen;
 use Surface\Contracts\Windows\Mail\MenuToggled;
 use Surface\Contracts\Windows\Mail\QuitRequested;
 use Surface\Contracts\Windows\Menus\MenuRole;
@@ -57,7 +59,9 @@ class GTKMenuBar
     }
 
     /**
-     * The action scope its items name: "win" for a window's bar, "app" for the default bar.
+     * The action scope its items name: "app" for the default bar and for every bar on macOS (GTK's
+     * macOS exporter reads item states through the application's actions only; the driver holds
+     * the shown bar's actions in the app), "win" for a window's bar on Linux.
      * @var string
      */
     protected readonly string $scope;
@@ -78,7 +82,22 @@ class GTKMenuBar
      */
     protected array $toggles = [];
 
-    /** The own and effective state of each node. */
+    /**
+     * Each radio group's item ids: every item has its own action, whose state is the group's chosen id.
+     * @var array<string, list<string>>
+     */
+    protected array $groups = [];
+
+    /**
+     * Where each node's GMenuItem sits: its section (the model for a top-level folder) and index, for a relabel.
+     * @var array<string, array{GMenu, int}>
+     */
+    protected array $places = [];
+
+    /** @var array<string, GMenu> each folder's submenu */
+    protected array $submenus = [];
+
+    /** The own and effective state of each node, toggles, radios and labels. */
     protected readonly MenuStates $states;
 
     /** The bar widget, once a window asks for one (Linux). */
@@ -93,6 +112,7 @@ class GTKMenuBar
      * @param string|null $window the window it belongs to; null for the app's default bar, whose items post '' (Quit posts null)
      * @param array{name?: string|null, version?: string|null, copyright?: string|null} $about
      * @param GtkWindow|null $parent the window About is shown over
+     * @param MenuStates|null $states the states to build from and keep: the driver's for the default bar, which outlives a rebuild; null starts from the profile
      */
     public function __construct(
         protected readonly GTKSession $session,
@@ -100,13 +120,15 @@ class GTKMenuBar
         protected readonly ?string $window,
         protected readonly array $about,
         protected readonly ?GtkWindow $parent,
+        ?MenuStates $states = null,
     ) {
-        $this->scope = is_null($window) ? 'app' : 'win';
+        $this->scope = is_null($window) || GTKBridgeDriver::appWideBar() ? 'app' : 'win';
         $this->model = GMenu::new();
         $this->actions = GSimpleActionGroup::new();
-        $this->states = new MenuStates($profile);
+        $this->states = $states ?? new MenuStates($profile);
 
         foreach ($profile->folders as $folder) {
+            $this->placeAt($folder->id, $this->model);
             $this->model->appendItem($this->folderItem($folder));
         }
 
@@ -116,9 +138,11 @@ class GTKMenuBar
     }
 
     /**
-     * Turn this bar's hotkeys on or off in the application's accelerator table. A window's bar
-     * keeps them on: "win" actions resolve in the focused window only. The default bar has them
-     * on only while it is the bar shown, so a hotkey never names both a window's and its action.
+     * Turn this bar's hotkeys on or off in the application's accelerator table. On Linux a window's
+     * bar keeps them on: "win" actions resolve in the focused window only. On macOS every bar names
+     * "app" actions, and a hotkey fires the action the application holds, the shown bar's; the
+     * driver turns a bar's hotkeys off as its actions leave. The default bar has them on only while
+     * it is the bar shown, so a hotkey never names both a window's and its action.
      * @param bool $on
      * @return void
      */
@@ -255,12 +279,103 @@ class GTKMenuBar
 
     public function setToggle(string $item, bool $on): void
     {
-        $this->toggle($item)->setState(GVariant::newBoolean($on));
+        $action = $this->toggle($item);
+        $this->states->setToggle($item, $on);
+        $action->setState(GVariant::newBoolean($on));
     }
 
     public function isToggled(string $item): bool
     {
-        return $this->toggle($item)->getState()->getBoolean();
+        $this->toggle($item);
+
+        return $this->states->toggle($item);
+    }
+
+    /** @throws WindowException When no radio group has the name, or the item is not in it. */
+    public function setRadio(string $group, string $item): void
+    {
+        $this->states->setRadio($group, $item);
+        $this->showRadio($group);
+    }
+
+    /** @throws WindowException When no radio group has the name. */
+    public function radio(string $group): string
+    {
+        return $this->states->radio($group);
+    }
+
+    /**
+     * GMenu items are immutable: the node's item is replaced at its index in its section, carrying
+     * the new label and the same action, target and submenu. A top-level folder's sensitivity in the
+     * bar widget is applied again, its button being made anew.
+     *
+     * @throws WindowException When no node has the id.
+     */
+    public function setItemLabel(string $item, string $label): void
+    {
+        $this->states->setLabel($item, $label);
+        [$section, $index] = $this->place($item);
+        $node = $this->profile->nodes()[$item];
+        $section->remove($index);
+        $section->insertItem($index, $node->isFolder() ? $this->folderEntry($node) : $this->leafItem($node));
+        if ($section === $this->model) {
+            $this->apply($item);
+        }
+        // GTK's macOS exporter applies a model change by index into the native menu, where macOS
+        // has put items of its own (Show Tab Bar atop a View menu): the shown bar is built anew.
+        $application = $this->session->application();
+        if (GTKBridgeDriver::appWideBar() && $application->getMenubar() === $this->model) {
+            $application->setMenubar(null);
+            $application->setMenubar($this->model);
+        }
+    }
+
+    /** @throws WindowException When no node has the id. */
+    public function itemLabel(string $item): string
+    {
+        return $this->states->label($item);
+    }
+
+    /**
+     * A node's section and index.
+     *
+     * @return array{GMenu, int}
+     * @throws WindowException When no node has the id.
+     */
+    public function place(string $id): array
+    {
+        return $this->places[$id] ?? throw new WindowException("No node '{$id}' in menu profile '{$this->profile->name}'.");
+    }
+
+    /** Every action of $group takes the group's chosen id as its state. */
+    protected function showRadio(string $group): void
+    {
+        $chosen = GVariant::newString($this->states->radio($group));
+        foreach ($this->groups[$group] as $id) {
+            $this->action($id)->setState($chosen);
+        }
+    }
+
+    protected function placeAt(string $id, GMenu $section): void
+    {
+        $this->places[$id] = [$section, $section->getNItems()];
+    }
+
+    /** A leaf's item: its label, and its action with its own id as the target for a radio item. */
+    protected function leafItem(MenuItem $item): GMenuItem
+    {
+        $detailed = is_null($item->radio()) ? "{$this->scope}.{$item->id}" : "{$this->scope}.{$item->id}::{$item->id}";
+
+        return GMenuItem::new($this->states->label($item->id), $detailed);
+    }
+
+    /** A folder's item over its submenu, built once. */
+    protected function folderEntry(MenuItem $folder): GMenuItem
+    {
+        $item = GMenuItem::new($this->states->label($folder->id), "{$this->scope}.{$folder->id}");
+        $item->setSubmenu($this->submenus[$folder->id]);
+
+        return $item;
     }
 
     protected function toggle(string $item): GSimpleAction
@@ -280,12 +395,13 @@ class GTKMenuBar
                 continue;
             }
 
+            $this->placeAt($item->id, $section);
             if ($item->isFolder()) {
                 $section->appendItem($this->folderItem($item));
                 continue;
             }
 
-            $section->append($item->label, "{$this->scope}.{$item->id}");
+            $section->appendItem($this->leafItem($item));
             $this->actions->addAction($this->actionFor($item));
 
             if (! is_null($item->keys)) {
@@ -301,11 +417,10 @@ class GTKMenuBar
     /** A folder as a menu item whose action attribute names its own action, which GTK's menu tracker reads its sensitivity from. */
     protected function folderItem(MenuItem $folder): GMenuItem
     {
-        $item = GMenuItem::new($folder->label, "{$this->scope}.{$folder->id}");
-        $item->setSubmenu($this->folder($folder));
+        $this->submenus[$folder->id] = $this->folder($folder);
         $this->actions->addAction(GSimpleAction::new($folder->id, null));
 
-        return $item;
+        return $this->folderEntry($folder);
     }
 
     /**
@@ -333,13 +448,32 @@ class GTKMenuBar
         $window = $this->window ?? '';
 
         if ($item->toggle) {
-            $action = GSimpleAction::newStateful($item->id, null, GVariant::newBoolean($item->on));
+            $action = GSimpleAction::newStateful($item->id, null, GVariant::newBoolean($this->states->toggle($item->id)));
             // With no activate handler, activating a boolean stateful action asks to change its state.
             g_signal_connect($action, 'change-state', function (GSimpleAction $action, GVariant $value) use ($item, $window): void {
+                $this->states->setToggle($item->id, $value->getBoolean());
                 $action->setState($value);
                 $this->session->post(new MenuToggled($window, $item->id, $value->getBoolean()));
             });
             $this->toggles[$item->id] = $action;
+
+            return $action;
+        }
+
+        $group = $item->radio();
+        if (! is_null($group)) {
+            // A string action per item, its state the group's chosen id: GTK draws the item as chosen when the state is its target.
+            $action = GSimpleAction::newStateful($item->id, 's', GVariant::newString($this->states->radio($group)));
+            g_signal_connect($action, 'change-state', function (GSimpleAction $action, GVariant $value) use ($group, $window): void {
+                $chosen = (string) $value->getString();
+                if ($chosen === $this->states->radio($group)) {
+                    return;
+                }
+                $this->states->setRadio($group, $chosen);
+                $this->showRadio($group);
+                $this->session->post(new MenuRadioChosen($window, $group, $chosen));
+            });
+            $this->groups[$group][] = $item->id;
 
             return $action;
         }

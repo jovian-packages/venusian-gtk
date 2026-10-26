@@ -3,11 +3,14 @@
 namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
+use Jovian\Toolkits\GTK\Primitives\Concerns\GTKButtonImage;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKTextStyle;
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Surface\Contracts\Framebuffers\Framebuffer;
 use Surface\Contracts\Windows\Mail\View\ButtonClicked;
 use Surface\Contracts\Windows\Primitives\ButtonRole;
+use Surface\Contracts\Windows\Primitives\ImagePosition;
 use Surface\Contracts\Windows\Primitives\Placement;
 use Surface\Contracts\Windows\WindowException;
 use Surface\Windows\Primitives\TKButton;
@@ -18,6 +21,7 @@ use Surface\Windows\Primitives\TKPrimitiveGroup;
  */
 class GTKButton extends TKButton implements GTKView
 {
+    use GTKButtonImage;
     use GTKPrimitive;
     use GTKTextStyle;
 
@@ -41,7 +45,27 @@ class GTKButton extends TKButton implements GTKView
 
     protected function applyLabel(string $label): void
     {
-        $this->widgetButton()->setLabel($label);
+        if (is_null($this->image)) {
+            $this->widgetButton()->setLabel($label);
+        } else {
+            $this->applyImage($this->image, $this->image_position, $this->image_scale);
+        }
+    }
+
+    /** The image replaces the button's label child with a box of the image and a label; none puts the label back. */
+    protected function applyImage(?Framebuffer $image, ImagePosition $position, float $scale): void
+    {
+        if (is_null($image)) {
+            $this->widgetButton()->setLabel($this->label);
+
+            return;
+        }
+        $this->widgetButton()->setChild(self::imageChild($image, $position, $scale, $this->label));
+    }
+
+    protected function applyBordered(bool $on): void
+    {
+        $this->widgetButton()->setHasFrame($on);
     }
 
     /**

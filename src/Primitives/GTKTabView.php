@@ -68,9 +68,11 @@ class GTKTabView extends TKTabView implements GTKContainer
         }
     }
 
-    protected function insertPage(TKColumn $page, string $title): void
+    protected function insertPage(TKColumn $page, string $title, ?int $index): void
     {
-        $this->quietly(fn () => $this->native()->appendPage(self::nativeOf($page), GtkLabel::new($title)));
+        $this->quietly(fn () => is_null($index)
+            ? $this->native()->appendPage(self::nativeOf($page), GtkLabel::new($title))
+            : $this->native()->insertPage(self::nativeOf($page), GtkLabel::new($title), $index));
     }
 
     protected function applyTitle(TKColumn $page, string $title): void

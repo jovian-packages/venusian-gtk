@@ -34,6 +34,9 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
 
     protected ?GTKMenuBar $default_bar = null;
 
+    /** macOS: the bar whose actions the application holds, the one in the app bar. */
+    protected ?GTKMenuBar $held = null;
+
     /** The states of the default profile's nodes, kept for a default bar built later. */
     protected ?MenuStates $default_states = null;
 
@@ -139,7 +142,11 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
         $this->default_states = is_null($menu) ? null : new MenuStates($menu);
 
         if (! is_null($this->default_bar)) {
-            $this->default_bar->removeFrom($this->session->application());
+            if ($this->held === $this->default_bar) {
+                $this->hold(null);
+            } else {
+                $this->default_bar->setAccelerators(false);
+            }
             $this->default_bar = null;
         }
 
@@ -178,18 +185,17 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
         $application = $this->session->application();
 
         if (is_null($this->default_menu)) {
+            $this->hold(null);
             $application->setMenubar(null);
             return;
         }
 
         if (is_null($this->default_bar)) {
-            $this->default_bar = new GTKMenuBar($this->session, $this->default_menu, null, $this->about(), null);
-            foreach ($this->default_states->changes() as $id => $enabled) {
-                $this->default_bar->setItemEnabled($id, $enabled);
-            }
-            $this->default_bar->addTo($application);
+            // The bar builds from the driver's states and keeps them: what was set before, and the user's choices since, survive a rebuild.
+            $this->default_bar = new GTKMenuBar($this->session, $this->default_menu, null, $this->about(), null, $this->default_states);
         }
 
+        $this->hold($this->default_bar);
         $this->default_bar->block($blocked);
         $this->default_bar->setAccelerators(true);
         $application->setMenubar($this->default_bar->model());
@@ -212,6 +218,49 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
         return $this->defaultStates()->isEnabled($item);
     }
 
+    /**
+     * The default bar's toggles, radios and labels: kept in its states, which a bar built later
+     * (and the bar now, sharing them) shows. Post nothing.
+     * @throws WindowException
+     */
+    public function setToggle(string $item, bool $on): void
+    {
+        $this->defaultStates()->setToggle($item, $on);
+        $this->default_bar?->setToggle($item, $on);
+    }
+
+    /** @throws WindowException */
+    public function isToggled(string $item): bool
+    {
+        return $this->defaultStates()->toggle($item);
+    }
+
+    /** @throws WindowException */
+    public function setRadio(string $group, string $item): void
+    {
+        $this->defaultStates()->setRadio($group, $item);
+        $this->default_bar?->setRadio($group, $item);
+    }
+
+    /** @throws WindowException */
+    public function radio(string $group): string
+    {
+        return $this->defaultStates()->radio($group);
+    }
+
+    /** @throws WindowException */
+    public function setItemLabel(string $item, string $label): void
+    {
+        $this->defaultStates()->setLabel($item, $label);
+        $this->default_bar?->setItemLabel($item, $label);
+    }
+
+    /** @throws WindowException */
+    public function itemLabel(string $item): string
+    {
+        return $this->defaultStates()->label($item);
+    }
+
     protected function defaultStates(): MenuStates
     {
         return $this->default_states ?? throw new WindowException('No default menu bar profile is set.');
@@ -225,7 +274,24 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
     public function showWindowMenuBar(GTKMenuBar $bar): void
     {
         $this->default_bar?->setAccelerators(false);
+        $this->hold($bar);
+        $bar->setAccelerators(true);
         $this->session->application()->setMenubar($bar->model());
+    }
+
+    /**
+     * macOS: the application holds the shown bar's actions, which its items name as "app" actions;
+     * the bar shown before gives its actions and hotkeys back. Null: no bar's.
+     */
+    protected function hold(?GTKMenuBar $bar): void
+    {
+        if ($this->held === $bar) {
+            return;
+        }
+        $application = $this->session->application();
+        $this->held?->removeFrom($application);
+        $bar?->addTo($application);
+        $this->held = $bar;
     }
 
     /**

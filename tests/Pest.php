@@ -34,6 +34,17 @@ const TEST_MENUS = [
             ]],
         ]],
     ],
+    'choices' => [
+        ['label' => 'App', 'items' => [['role' => 'quit', 'label' => 'Quit', 'hotkey' => 'q']]],
+        ['id' => 'compare', 'label' => 'Compare', 'items' => [
+            ['id' => 'case.none', 'label' => 'None', 'radio' => 'ignore-case', 'on' => true],
+            ['id' => 'case.unimportant', 'label' => 'Unimportant', 'radio' => 'ignore-case'],
+            ['id' => 'case.all', 'label' => 'All', 'radio' => 'ignore-case'],
+            ['separator' => true],
+            ['id' => 'compare.wrap', 'label' => 'Wrap', 'toggle' => true],
+            ['id' => 'compare.more', 'label' => 'More', 'items' => [['id' => 'compare.more.deep', 'label' => 'Deep']]],
+        ]],
+    ],
     'tools' => [
         ['label' => 'Tools', 'items' => [
             ['id' => 'tools.measure', 'label' => 'Measure'],
@@ -230,7 +241,13 @@ function keycodeOf(string $position): int
     return PHP_OS_FAMILY === 'Darwin' ? $mac : $evdev + 8;
 }
 
-/** Activate an item the way its menu does: through the window's "win" action. */
+/** The action scope a window's bar names: "app" in the macOS app bar, "win" in a Linux window. */
+function barScope(): string
+{
+    return Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver::appWideBar() ? 'app' : 'win';
+}
+
+/** Activate an item through the window's "win" group, which holds the bar's actions on every platform. */
 function choose(Jovian\Toolkits\GTK\Windows\GTKWindow $window, string $id): void
 {
     expect($window->native()->activateActionVariant("win.{$id}", null))->toBeTrue();

@@ -6,6 +6,7 @@ use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
 use Jovian\Toolkits\GTK\Windows\GTKMenuBar;
 use Surface\Windows\Menus\Accelerator;
 use Surface\Contracts\Windows\Mail\MenuActivated;
+use Surface\Contracts\Windows\Mail\MenuRadioChosen;
 use Surface\Contracts\Windows\Mail\MenuToggled;
 use Surface\Contracts\Windows\Mail\QuitRequested;
 use Surface\Contracts\Windows\WindowException;
@@ -29,10 +30,10 @@ it('builds the profile into a model with sections, actions and accelerators', fu
     expect($bar->model()->getNItems())->toBe(2)
         ->and($bar->actions()->listActions())->toEqualCanonicalizing(['app', 'app.about', 'app.quit', 'view', 'grid', 'view.refresh', 'view.next', 'view.tab', 'view.erase', 'view.locked', 'view.locked.item'])
         ->and($bar->action('grid')->getState()->getBoolean())->toBeFalse()
-        ->and(session()->application()->getAccelsForAction('win.app.quit'))->toBe([hotkey('q')])
-        ->and(session()->application()->getAccelsForAction('win.view.refresh'))->toBe(['<Shift>'.hotkey('F5')])
-        ->and(session()->application()->getAccelsForAction('win.view.next'))->toBe(['<Alt>Down'])
-        ->and(session()->application()->getAccelsForAction('win.view.tab'))->toBe([hotkey('bracketright')]);
+        ->and(session()->application()->getAccelsForAction(barScope().'.app.quit'))->toBe([hotkey('q')])
+        ->and(session()->application()->getAccelsForAction(barScope().'.view.refresh'))->toBe(['<Shift>'.hotkey('F5')])
+        ->and(session()->application()->getAccelsForAction(barScope().'.view.next'))->toBe(['<Alt>Down'])
+        ->and(session()->application()->getAccelsForAction(barScope().'.view.tab'))->toBe([hotkey('bracketright')]);
 });
 
 it('puts the bar where the OS keeps menus', function (): void {
@@ -177,6 +178,71 @@ it('shows the default bar on macOS while a window without a bar is active', func
         ->and($app->getAccelsForAction('app.app.quit'))->toBe([hotkey('q')]);
 })->skip(! GTKBridgeDriver::appWideBar(), 'Linux keeps menus inside windows');
 
+it('names app actions in a window\'s bar on macOS, held by the app while the window is active: the app bar shows their states', function (): void {
+    // GTK's macOS exporter reads item states through the application's actions only.
+    $app = session()->application();
+    driver()->setDefaultMenuBar(driver()->profile('main'));
+    $window = driver()->open('main', 320, 200, driver()->profile('choices'))->present();
+    requireActive($window);
+    $bar = $window->menuBar();
+    [$section, $index] = $bar->place('case.all');
+    $window->setRadio('ignore-case', 'case.all');
+
+    expect($section->getItemAttributeValue($index, 'action', 's')->getString())->toBe('app.case.all')
+        ->and($app->lookupAction('case.all'))->toBe($bar->action('case.all'))
+        ->and($app->lookupAction('case.all')->getState()->getString())->toBe('case.all')
+        ->and($app->hasAction('view.refresh'))->toBeFalse();
+
+    $plain = driver()->open('plain', 320, 200)->present();
+    requireActive($plain);
+
+    expect($app->getMenubar())->toBe(driver()->defaultMenuBar()->model())
+        ->and($app->hasAction('case.all'))->toBeFalse()
+        ->and($app->lookupAction('view.refresh'))->toBe(driver()->defaultMenuBar()->action('view.refresh'));
+
+    $window->present();
+    requireActive($window);
+
+    expect($app->lookupAction('case.all'))->toBe($bar->action('case.all'))
+        ->and($app->hasAction('view.refresh'))->toBeFalse();
+})->skip(! GTKBridgeDriver::appWideBar(), 'Linux keeps menus inside windows');
+
+/** The titles in the native app bar's top-level menu called $title, read through ext-appkit. */
+function nativeMenuTitles(string $title): array
+{
+    $main = NSApplication::sharedApplication()->mainMenu();
+    for ($i = 0; $i < ($main?->numberOfItems() ?? 0); $i++) {
+        if ($main->itemAtIndex($i)->title() === $title && ! is_null($menu = $main->itemAtIndex($i)->submenu())) {
+            return array_map(fn (int $j): string => $menu->itemAtIndex($j)->title(), range(0, $menu->numberOfItems() - 1));
+        }
+    }
+
+    return [];
+}
+
+it('relabels in the macOS app bar by rebuilding it: macOS adds items of its own that GTK\'s exporter does not count', function (): void {
+    $window = driver()->open('main', 320, 200, driver()->profile('choices'))->present();
+    requireActive($window);
+    pumpFor(0.1);
+    $main = NSApplication::sharedApplication()->mainMenu();
+    for ($i = 0; $i < $main->numberOfItems(); $i++) {
+        if ($main->itemAtIndex($i)->title() === 'Compare') {
+            // As macOS puts Show Tab Bar and Show All Tabs at the top of a View menu.
+            $main->itemAtIndex($i)->submenu()->insertItemAtIndex(NSMenuItem::separatorItem(), 0);
+        }
+    }
+
+    $window->setItemLabel('compare.wrap', 'Wrapping');
+    pumpFor(0.1);
+    $titles = nativeMenuTitles('Compare');
+
+    expect($titles)->toContain('None')
+        ->and($titles)->toContain('Unimportant')
+        ->and($titles)->toContain('All')
+        ->and($titles)->toContain('Wrapping')
+        ->and($titles)->not->toContain('Wrap');
+})->skip(! GTKBridgeDriver::appWideBar() || ! class_exists('NSApplication'), 'the macOS app bar, read through ext-appkit');
+
 it('keeps the default bar built when the same profile is set again', function (): void {
     driver()->setDefaultMenuBar(driver()->profile('tools'));
     driver()->setDefaultMenuBar(driver()->profile('main'));
@@ -190,12 +256,13 @@ it('keeps the default bar built when the same profile is set again', function ()
 })->skip(! GTKBridgeDriver::appWideBar(), 'Linux keeps menus inside windows');
 
 /**
- * The bar widget, with the bar's actions reachable as "win" actions. On Linux the window holds the
- * widget and gives it them; on macOS the bar lives in the app bar and the widget is in no window.
+ * The bar widget, with the bar's actions reachable under the scope its items name. On Linux the
+ * window holds the widget and gives it them; on macOS the bar lives in the app bar and the widget
+ * is in no window.
  */
 function barWidget(GTKMenuBar $bar): GtkPopoverMenuBar
 {
-    $bar->widget()->insertActionGroup('win', $bar->actions());
+    $bar->widget()->insertActionGroup(barScope(), $bar->actions());
 
     return $bar->widget();
 }
@@ -333,4 +400,86 @@ it('refuses a default bar state with no default profile', function (): void {
     driver()->setDefaultMenuBar(null);
 
     expect(fn () => driver()->setItemEnabled('view.refresh', false))->toThrow(WindowException::class, 'default');
+});
+
+/** Each radio item's action state: the group's chosen id, on every item. */
+function caseStates(GTKMenuBar $bar): array
+{
+    return array_map(fn (string $id): string => $bar->action($id)->getState()->getString(), ['case.none' => 'case.none', 'case.unimportant' => 'case.unimportant', 'case.all' => 'case.all']);
+}
+
+/** The label a node's GMenuItem carries in its section. */
+function modelLabel(GTKMenuBar $bar, string $id): string
+{
+    [$section, $index] = $bar->place($id);
+
+    return $section->getItemAttributeValue($index, 'label', 's')->getString();
+}
+
+it('gives each radio item a string action whose state is the group\'s chosen id, and sets it without posting', function (): void {
+    $window = driver()->open('main', 320, 200, driver()->profile('choices'));
+    [$section, $index] = $window->menuBar()->place('case.unimportant');
+
+    expect(caseStates($window->menuBar()))->toBe(['case.none' => 'case.none', 'case.unimportant' => 'case.none', 'case.all' => 'case.none'])
+        ->and($window->menuBar()->action('case.unimportant')->getParameterType())->toBe('s')
+        ->and($section->getItemAttributeValue($index, 'target', 's')->getString())->toBe('case.unimportant');
+
+    $window->setRadio('ignore-case', 'case.all');
+
+    expect(caseStates($window->menuBar()))->toBe(['case.none' => 'case.all', 'case.unimportant' => 'case.all', 'case.all' => 'case.all'])
+        ->and($window->radio('ignore-case'))->toBe('case.all')
+        ->and(takeMail(session()))->toBe([])
+        ->and(fn () => $window->setRadio('ignore-case', 'compare.wrap'))->toThrow(WindowException::class, "'compare.wrap' is not in radio group 'ignore-case'.");
+});
+
+it('posts MenuRadioChosen for the user\'s choice, and nothing for the item already on', function (): void {
+    $window = driver()->open('main', 320, 200, driver()->profile('choices'));
+
+    $window->native()->activateActionVariant('win.case.unimportant', GVariant::newString('case.unimportant'));
+    $window->native()->activateActionVariant('win.case.unimportant', GVariant::newString('case.unimportant'));
+
+    expect(takeMail(session()))->toEqual([new MenuRadioChosen('main', 'ignore-case', 'case.unimportant')])
+        ->and($window->radio('ignore-case'))->toBe('case.unimportant')
+        ->and(caseStates($window->menuBar())['case.all'])->toBe('case.unimportant');
+});
+
+it('disables one radio item on its own, and relabels an item and a folder in the model', function (): void {
+    $window = driver()->open('main', 320, 200, driver()->profile('choices'));
+
+    $window->setItemEnabled('case.all', false);
+    $window->setItemLabel('case.none', 'Nothing');
+    $window->setItemLabel('compare', 'Diff');
+    $window->setItemLabel('compare.more', 'Further');
+
+    expect($window->menuBar()->action('case.all')->getEnabled())->toBeFalse()
+        ->and($window->menuBar()->action('case.none')->getEnabled())->toBeTrue()
+        ->and(modelLabel($window->menuBar(), 'case.none'))->toBe('Nothing')
+        ->and(modelLabel($window->menuBar(), 'compare'))->toBe('Diff')
+        ->and(modelLabel($window->menuBar(), 'compare.more'))->toBe('Further')
+        ->and($window->itemLabel('compare'))->toBe('Diff')
+        ->and($window->menuBar()->model()->getNItems())->toBe(2)
+        ->and(takeMail(session()))->toBe([]);
+
+    // The relabelled item keeps its action, target and radio state.
+    $window->native()->activateActionVariant('win.case.none', GVariant::newString('case.none'));
+    $window->setRadio('ignore-case', 'case.unimportant');
+    expect(caseStates($window->menuBar())['case.none'])->toBe('case.unimportant');
+});
+
+it('keeps the default bar\'s radios, toggles and labels in the driver, and in the bar where one shows', function (): void {
+    driver()->setDefaultMenuBar(driver()->profile('choices'));
+    driver()->setRadio('ignore-case', 'case.all');
+    driver()->setToggle('compare.wrap', true);
+    driver()->setItemLabel('compare.wrap', 'Wrap Lines');
+
+    expect(driver()->radio('ignore-case'))->toBe('case.all')
+        ->and(driver()->isToggled('compare.wrap'))->toBeTrue()
+        ->and(driver()->itemLabel('compare.wrap'))->toBe('Wrap Lines');
+    if (GTKBridgeDriver::appWideBar()) {
+        driver()->showDefaultMenuBar();
+        expect(caseStates(driver()->defaultMenuBar())['case.none'])->toBe('case.all')
+            ->and(driver()->defaultMenuBar()->isToggled('compare.wrap'))->toBeTrue()
+            ->and(modelLabel(driver()->defaultMenuBar(), 'compare.wrap'))->toBe('Wrap Lines');
+    }
+    driver()->setDefaultMenuBar(driver()->profile('main'));
 });

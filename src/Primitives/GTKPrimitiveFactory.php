@@ -4,12 +4,14 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use DateTimeImmutable;
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Surface\Contracts\Windows\Menus\ContextMenu;
 use Surface\Contracts\Windows\Primitives\Placement;
 use Surface\Contracts\Windows\Primitives\PrimitiveFactory;
 use Surface\Contracts\Windows\Primitives\TKButton;
 use Surface\Contracts\Windows\Primitives\TKCanvas;
 use Surface\Contracts\Windows\Primitives\TKCheckbox;
 use Surface\Contracts\Windows\Primitives\TKColumn;
+use Surface\Contracts\Windows\Primitives\TKComboBox;
 use Surface\Contracts\Windows\Primitives\TKDatepicker;
 use Surface\Contracts\Windows\Primitives\TKDropdown;
 use Surface\Contracts\Windows\Primitives\TKFixed;
@@ -17,9 +19,11 @@ use Surface\Contracts\Windows\Primitives\TKGrid;
 use Surface\Contracts\Windows\Primitives\TKImage;
 use Surface\Contracts\Windows\Primitives\TKLabel;
 use Surface\Contracts\Windows\Primitives\TKLink;
+use Surface\Contracts\Windows\Primitives\TKMenuButton;
 use Surface\Contracts\Windows\Primitives\TKPrimitiveGroup as GroupContract;
 use Surface\Contracts\Windows\Primitives\TKProgressBar;
 use Surface\Contracts\Windows\Primitives\TKRow;
+use Surface\Contracts\Windows\Primitives\TKScrollBar;
 use Surface\Contracts\Windows\Primitives\TKScrollView;
 use Surface\Contracts\Windows\Primitives\TKSeparator;
 use Surface\Contracts\Windows\Primitives\TKSlider;
@@ -120,6 +124,21 @@ class GTKPrimitiveFactory implements PrimitiveFactory
     public function mintDropdown(GroupContract $host, string $name, array $options, int $selected): TKDropdown
     {
         return new GTKDropdown($name, $this->window, self::parent($host), self::placement($host), $options, $selected);
+    }
+
+    public function mintScrollBar(GroupContract $host, string $name, bool $vertical): TKScrollBar
+    {
+        return new GTKScrollBar($name, $this->window, self::parent($host), self::placement($host), $vertical);
+    }
+
+    public function mintComboBox(GroupContract $host, string $name, string $value, array $options): TKComboBox
+    {
+        return new GTKComboBox($name, $this->window, self::parent($host), self::placement($host), $value, $options);
+    }
+
+    public function mintMenuButton(GroupContract $host, string $name, string $label, ContextMenu $menu): TKMenuButton
+    {
+        return new GTKMenuButton($name, $this->window, self::parent($host), self::placement($host), $label, $menu);
     }
 
     public function mintDatepicker(GroupContract $host, string $name, ?DateTimeImmutable $date): TKDatepicker

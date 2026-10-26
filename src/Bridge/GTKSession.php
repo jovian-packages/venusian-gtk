@@ -8,10 +8,11 @@ use GMainContext;
 use GtkAboutDialog;
 use GtkApplication;
 use GtkWindow;
+use Jovian\Toolkits\GTK\Windows\GTKCanvasCoast;
+use Jovian\Toolkits\GTK\Windows\GTKWindow as DriverWindow;
 use NSApplication;
 use Surface\Bridge\BridgedToolkitSession;
 use Surface\Contracts\Bridge\BridgeException;
-use Jovian\Toolkits\GTK\Windows\GTKWindow as DriverWindow;
 use Surface\Contracts\Windows\Mail\View\ViewResized;
 use Surface\Contracts\Windows\Mail\WindowResized;
 use Surface\Contracts\Windows\Primitives\TKPrimitive;
@@ -60,6 +61,9 @@ class GTKSession extends BridgedToolkitSession
      * @var array<string, array{DriverWindow, array{int, int}}>
      */
     protected array $windows = [];
+
+    /** @var array<int, GTKCanvasCoast> coasts ticked at each pump */
+    protected array $coasts = [];
 
     /**
      * @param string $application_id the desktop identity: Wayland's app_id, the bus name when unique
@@ -147,6 +151,10 @@ class GTKSession extends BridgedToolkitSession
         }
 
         $this->checkWatched();
+        $this->tickCoasts();
+        foreach ($this->windows as [$window]) {
+            $window->settleActive();
+        }
 
         return $dispatched;
     }
@@ -157,6 +165,23 @@ class GTKSession extends BridgedToolkitSession
      * @param TKPrimitive $primitive
      * @return void
      */
+    /** Tick $coast at every pump until it is done: the pump is its clock. */
+    public function coast(GTKCanvasCoast $coast): void
+    {
+        $this->coasts[spl_object_id($coast)] = $coast;
+    }
+
+    private function tickCoasts(): void
+    {
+        $now = GTKCanvasCoast::nowMs();
+        foreach ($this->coasts as $id => $coast) {
+            $coast->tick($now);
+            if ($coast->done()) {
+                unset($this->coasts[$id]);
+            }
+        }
+    }
+
     public function watch(TKPrimitive $primitive): void
     {
         $this->watched[$primitive->uuid()] = [$primitive, $primitive->size()];

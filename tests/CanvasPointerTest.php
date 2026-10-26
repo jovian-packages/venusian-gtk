@@ -322,7 +322,10 @@ it('routes the pointer\'s events, and nothing from a touch that does not emulate
         ->and(GTKCanvasPointer::route(GdkEventType::TOUCH_END, true))->toBe('released')
         ->and(GTKCanvasPointer::route(GdkEventType::GRAB_BROKEN, true))->toBe('interrupt')
         ->and(GTKCanvasPointer::route(GdkEventType::TOUCH_CANCEL, true))->toBe('interrupt')
-        ->and(GTKCanvasPointer::route(GdkEventType::ENTER_NOTIFY, true))->toBeNull()
+        // Crossing into the window is a move (hover); out of it, the canvas under the pointer is left.
+        ->and(GTKCanvasPointer::route(GdkEventType::ENTER_NOTIFY, true))->toBe('moved')
+        ->and(GTKCanvasPointer::route(GdkEventType::LEAVE_NOTIFY, true))->toBe('left')
+        ->and(GTKCanvasPointer::route(GdkEventType::PROXIMITY_IN, true))->toBeNull()
         // A second finger: its moves, lift and cancel are not the press's.
         ->and(GTKCanvasPointer::route(GdkEventType::TOUCH_BEGIN, false))->toBeNull()
         ->and(GTKCanvasPointer::route(GdkEventType::TOUCH_UPDATE, false))->toBeNull()
@@ -399,4 +402,75 @@ it('keeps the wheel from the scroll view a watching canvas sits in', function ()
     expect([$kept, $passed])->toBe([true, false])
         ->and(pointerNames($mail))->toBe(['view.wheeled.main.m.s.inner.board'])
         ->and(pointerMail())->toBe([]);
+});
+
+it('gives a wheel its gesture phase: none with no begin, began, changed, then ended', function (): void {
+    [$window, , $board] = pointerWindow();
+    $scroll = $board->scrollController();
+
+    g_signal_emit_by_name($scroll, 'scroll', 0.0, 1.0);
+    g_signal_emit_by_name($scroll, 'scroll-begin');
+    g_signal_emit_by_name($scroll, 'scroll', 0.0, 2.0);
+    g_signal_emit_by_name($scroll, 'scroll', 0.0, 3.0);
+    g_signal_emit_by_name($scroll, 'scroll-end');
+    $mail = pointerMail();
+
+    expect(array_map(fn (CanvasWheeled $wheel): string => $wheel->phase->value, $mail))->toBe(['none', 'began', 'changed', 'ended'])
+        ->and([$mail[3]->dx, $mail[3]->dy])->toBe([0.0, 0.0])
+        ->and(($scroll->getFlags() & GTK_EVENT_CONTROLLER_SCROLL_KINETIC) !== 0)->toBeTrue();
+    $window->close();
+});
+
+it('coasts after a flick: momentum with decaying deltas, then one momentum end', function (): void {
+    [$window, , $board] = pointerWindow();
+    g_signal_emit_by_name($board->scrollController(), 'decelerate', 1.0, 0.0);
+    $coast = $board->coast();
+
+    for ($t = 16.0; $t <= 3000.0; $t += 16.0) {
+        $coast->tick($coast->started() + $t);
+    }
+    $mail = pointerMail();
+    $momentum = array_values(array_filter($mail, fn (CanvasWheeled $wheel): bool => $wheel->phase === Surface\Contracts\Windows\Mail\View\ScrollPhase::MOMENTUM));
+    $deltas = array_map(fn (CanvasWheeled $wheel): float => $wheel->dx, $momentum);
+
+    expect(count($momentum))->toBeGreaterThan(10)
+        ->and(array_filter(array_keys($deltas), fn (int $i): bool => $i > 0 && $deltas[$i] >= $deltas[$i - 1]))->toBe([])
+        ->and(array_filter($deltas, fn (float $delta): bool => $delta <= 0.0))->toBe([])
+        ->and(end($mail)->phase)->toBe(Surface\Contracts\Windows\Mail\View\ScrollPhase::MOMENTUM_ENDED)
+        ->and(count(array_filter($mail, fn (CanvasWheeled $wheel): bool => $wheel->phase === Surface\Contracts\Windows\Mail\View\ScrollPhase::MOMENTUM_ENDED)))->toBe(1)
+        ->and($board->coast())->toBeNull();
+    $window->close();
+});
+
+it('ends a coast with momentum end for a press or a new gesture, and with no mail for removal', function (): void {
+    [$window, , $board] = pointerWindow();
+    [$x, $y] = canvasPointIn($window, $board, 12.0, 34.0);
+    $scroll = $board->scrollController();
+    $phases = fn (): array => array_map(fn (object $mail): string => $mail instanceof CanvasWheeled ? $mail->phase->value : (new ReflectionClass($mail))->getShortName(), pointerMail());
+
+    g_signal_emit_by_name($scroll, 'decelerate', 0.0, 2.0);
+    $window->canvasPointer()->pressed($x, $y, 1, 0);
+    $window->canvasPointer()->released($x, $y, 1, 0);
+    expect($phases())->toBe(['momentum-ended', 'CanvasPressed', 'CanvasReleased']);
+
+    g_signal_emit_by_name($scroll, 'decelerate', 0.0, 2.0);
+    g_signal_emit_by_name($scroll, 'scroll-begin');
+    expect($phases())->toBe(['momentum-ended']);
+
+    g_signal_emit_by_name($scroll, 'decelerate', 0.0, 2.0);
+    $coast = $board->coast();
+    $board->remove();
+    $coast->tick($coast->started() + 16.0);
+    expect($phases())->toBe([]);
+    $window->close();
+});
+
+it('sizes its pixels by the surface scale', function (): void {
+    [$window, , $board] = pointerWindow();
+    canvasPointIn($window, $board, 0.0, 0.0);
+    $scale = $window->native()->getSurface()->getScale();
+    [$width, $height] = $board->size();
+
+    expect($board->pixelSize())->toBe([(int) round($width * $scale), (int) round($height * $scale)]);
+    $window->close();
 });

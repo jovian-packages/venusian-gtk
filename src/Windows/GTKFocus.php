@@ -12,8 +12,9 @@ use WeakReference;
 
 /**
  * A toolkit window's keyboard focus as primitives. The window's notify::focus-widget tells every
- * move; the holder is the primitive whose focus widget is the focused widget or its nearest
- * ancestor (an entry's inner GtkText belongs to the entry). A move made from code, inside
+ * move; the holder is the primitive whose focus widget or native is the focused widget or its
+ * nearest ancestor (an entry's inner GtkText belongs to the entry, a combo's options button to the
+ * combo). A move made from code, inside
  * quietly(), posts nothing and only sets the holder, so the next move the user makes posts
  * FocusLost for that holder, then FocusGained for the new one.
  */
@@ -51,8 +52,10 @@ final class GTKFocus
         }
         $owners = [];
         foreach ($window->registry()->all() as $primitive) {
-            // Every GTK primitive (the GTKPrimitive trait) answers focusWidget().
+            // Every GTK primitive (the GTKPrimitive trait) answers native() and focusWidget(). A
+            // focusable part other than the focus widget (a combo's options button) is the native's.
             if (method_exists($primitive, 'focusWidget')) {
+                $owners[spl_object_id($primitive->native())] = $primitive;
                 $owners[spl_object_id($primitive->focusWidget())] = $primitive;
             }
         }

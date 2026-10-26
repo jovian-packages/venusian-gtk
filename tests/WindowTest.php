@@ -45,6 +45,43 @@ it('posts WindowFocused when presented and active', function (): void {
     expect(takeMail(session()))->toContainEqual(new WindowFocused('main'));
 });
 
+it('posts no WindowFocused while its own popover opens and closes', function (): void {
+    // On X11 a popover's grab makes the window inactive and active again in one dispatch.
+    $window = driver()->open('main', 320, 200);
+    $combo = $window->column('m')->comboBox('path', '/tmp', ['/tmp', '/']);
+    $window->present();
+    requireActive($window);
+    pumpFor(0.1);
+    takeMail(session());
+
+    $combo->optionsButton()->popup();
+    pumpUntil(fn (): bool => $combo->optionsButton()->getPopover()->getMapped());
+    $combo->optionsButton()->popdown();
+    // GTK's tooltip hover timer (500 ms) starts on the popover's crossing and outlives a closed window.
+    pumpFor(0.6);
+
+    expect(takeMail(session()))->not->toContainEqual(new WindowFocused('main'))
+        ->and($window->isActive())->toBeTrue();
+    $window->close();
+});
+
+it('posts WindowFocused again when it comes back from another window', function (): void {
+    $main = driver()->open('main', 320, 200)->present();
+    requireActive($main);
+    $other = driver()->open('other', 200, 100)->present();
+    requireActive($other);
+    pumpFor(0.1);
+    takeMail(session());
+
+    $main->present();
+    requireActive($main);
+    pumpFor(0.1);
+
+    expect(takeMail(session()))->toContainEqual(new WindowFocused('main'));
+    $other->close();
+    $main->close();
+});
+
 it('closes once, posts WindowClosed once, and is gone afterwards', function (): void {
     $window = driver()->open('main', 320, 200)->present();
     pumpFor(0.1);
@@ -97,4 +134,22 @@ it('closes every window', function (): void {
 
     expect(driver()->all())->toBe([])
         ->and(array_values(array_filter(takeMail(session()), fn ($m) => $m instanceof WindowClosed)))->toEqual([new WindowClosed('a'), new WindowClosed('b')]);
+});
+
+it('posts WindowScaleChanged when the surface scale changes, and nothing for the same scale', function (): void {
+    $window = driver()->open('main', 200, 100);
+    $window->present();
+    pumpUntil(fn (): bool => ! is_null($window->native()->getSurface()));
+    takeMail(session());
+
+    // One display here: the handler runs with the scale unchanged, then with the last one posted set off by hand.
+    $window->scaleChanged();
+    $same = array_filter(takeMail(session()), fn (object $mail): bool => $mail instanceof Surface\Contracts\Windows\Mail\WindowScaleChanged);
+    (fn () => $this->scale = 0.5)->call($window);
+    $window->scaleChanged();
+
+    expect($same)->toBe([])
+        ->and(array_values(array_filter(takeMail(session()), fn (object $mail): bool => $mail instanceof Surface\Contracts\Windows\Mail\WindowScaleChanged)))
+        ->toEqual([new Surface\Contracts\Windows\Mail\WindowScaleChanged('main', $window->native()->getSurface()->getScale())]);
+    $window->close();
 });

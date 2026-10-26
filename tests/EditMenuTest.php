@@ -15,9 +15,9 @@ it('gives edit items no accelerator: the text widgets keep their own keys', func
     $window = driver()->open('main', 320, 200, driver()->profile('editing'));
     $app = session()->application();
 
-    expect($app->getAccelsForAction('win.edit.copy'))->toBe([])
-        ->and($app->getAccelsForAction('win.edit.select-all'))->toBe([])
-        ->and($app->getAccelsForAction('win.app.quit'))->not->toBe([])
+    expect($app->getAccelsForAction(barScope().'.edit.copy'))->toBe([])
+        ->and($app->getAccelsForAction(barScope().'.edit.select-all'))->toBe([])
+        ->and($app->getAccelsForAction(barScope().'.app.quit'))->not->toBe([])
         ->and(takeMail(session()))->toBe([]);
 });
 

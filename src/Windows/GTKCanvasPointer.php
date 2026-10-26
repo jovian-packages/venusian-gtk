@@ -15,7 +15,11 @@ use Jovian\Toolkits\GTK\Bridge\GTKSession;
 use Jovian\Toolkits\GTK\Input\GTKInputEngine;
 use Surface\Contracts\HumanInput\Modifiers;
 use Surface\Contracts\HumanInput\MouseButton;
+use Jovian\Toolkits\GTK\Primitives\GTKCanvas;
 use Surface\Contracts\Windows\Mail\View\CanvasDragged;
+use Surface\Contracts\Windows\Mail\View\CanvasEntered;
+use Surface\Contracts\Windows\Mail\View\CanvasLeft;
+use Surface\Contracts\Windows\Mail\View\CanvasMoved;
 use Surface\Contracts\Windows\Mail\View\CanvasPressed;
 use Surface\Contracts\Windows\Mail\View\CanvasReleased;
 use Surface\Contracts\Windows\Primitives\TKCanvas;
@@ -61,6 +65,9 @@ final class GTKCanvasPointer
      */
     private ?array $origin = null;
 
+    /** @var WeakReference<TKCanvas>|null the watching canvas the pointer is over */
+    private ?WeakReference $inside = null;
+
     public function __construct(
         private readonly GTKWindow $window,
         private readonly GtkApplicationWindow $native,
@@ -102,6 +109,10 @@ final class GTKCanvasPointer
             return;
         }
         [$canvas, $native] = GTKCanvasClicks::canvasAt($this->window, $this->native, $x, $y);
+        // A press on the canvas stops its coast.
+        if ($canvas instanceof GTKCanvas) {
+            $canvas->endCoast();
+        }
         if (is_null($canvas) || ! $canvas->isWatchingPointer()) {
             return;
         }
@@ -119,6 +130,8 @@ final class GTKCanvasPointer
     {
         $press = $this->holding();
         if (is_null($press)) {
+            $this->hovered($x, $y, $state);
+
             return;
         }
         if (! is_null($this->origin)) {
@@ -148,6 +161,58 @@ final class GTKCanvasPointer
         $this->press = null;
         [$cx, $cy] = GTKCanvasClicks::canvasPoint($this->native, $native, $x, $y);
         $this->session->post(new CanvasReleased($this->window->name(), $canvas->path(), $canvas->uuid(), $cx, $cy, $mouse, GTKInputEngine::modifiers($state)));
+        // No crossing is seen during a press: a release away from the canvas the pointer was over is its exit.
+        $inside = $this->inside?->get();
+        if (! is_null($inside) && GTKCanvasClicks::canvasAt($this->window, $this->native, $x, $y)[0] !== $inside) {
+            $this->leave($inside);
+        }
+    }
+
+    /**
+     * The pointer moved with no press owned: CanvasMoved (latest-wins) over a watching canvas, and
+     * CanvasLeft / CanvasEntered when the watching canvas under it changed.
+     */
+    public function hovered(float $x, float $y, int $state): void
+    {
+        [$canvas, $native] = GTKCanvasClicks::canvasAt($this->window, $this->native, $x, $y);
+        $canvas = $canvas?->isWatchingPointer() ? $canvas : null;
+        $inside = $this->inside?->get();
+        if ($inside !== $canvas) {
+            $this->leave($inside);
+            if (! is_null($canvas)) {
+                $this->inside = WeakReference::create($canvas);
+                $this->session->post(new CanvasEntered($this->window->name(), $canvas->path(), $canvas->uuid()));
+            }
+        }
+        if (is_null($canvas)) {
+            return;
+        }
+        [$cx, $cy] = GTKCanvasClicks::canvasPoint($this->native, $native, $x, $y);
+        $this->session->postLatest(
+            "view.moved.{$this->window->name()}.{$canvas->path()}",
+            new CanvasMoved($this->window->name(), $canvas->path(), $canvas->uuid(), $cx, $cy, GTKInputEngine::modifiers($state)),
+        );
+    }
+
+    /** The pointer left the window: the canvas it was over posts CanvasLeft, unless a press is owned. */
+    public function leftWindow(): void
+    {
+        if (is_null($this->holding())) {
+            $this->leave($this->inside?->get());
+        }
+    }
+
+    private function leave(?TKCanvas $canvas): void
+    {
+        if (is_null($canvas) || $this->inside?->get() !== $canvas) {
+            return;
+        }
+        $this->inside = null;
+        if (! $canvas->isRemoved()) {
+            // The canvas's last CanvasMoved waits among the latest-wins mail: it goes out before the exit.
+            $this->session->flushLatest();
+            $this->session->post(new CanvasLeft($this->window->name(), $canvas->path(), $canvas->uuid()));
+        }
     }
 
     /**
@@ -220,7 +285,8 @@ final class GTKCanvasPointer
 
         return match ($type) {
             GdkEventType::BUTTON_PRESS, GdkEventType::TOUCH_BEGIN => 'pressed',
-            GdkEventType::MOTION_NOTIFY, GdkEventType::TOUCH_UPDATE => 'moved',
+            GdkEventType::MOTION_NOTIFY, GdkEventType::TOUCH_UPDATE, GdkEventType::ENTER_NOTIFY => 'moved',
+            GdkEventType::LEAVE_NOTIFY => 'left',
             GdkEventType::BUTTON_RELEASE, GdkEventType::TOUCH_END => 'released',
             GdkEventType::GRAB_BROKEN, GdkEventType::TOUCH_CANCEL => 'interrupt',
             default => null,
@@ -232,6 +298,11 @@ final class GTKCanvasPointer
         $route = self::route($event->getEventType(), ! $event instanceof GdkTouchEvent || $event->getEmulatingPointer());
         if ($route === 'interrupt') {
             $this->interrupt();
+
+            return;
+        }
+        if ($route === 'left') {
+            $this->leftWindow();
 
             return;
         }
