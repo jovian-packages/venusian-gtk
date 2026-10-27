@@ -53,7 +53,8 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
     private const int VOID_SYMBOL = 0xFFFFFF;
 
     /** Each modifier's keys, both sides. */
-    private const array MODIFIER_KEYS = [
+    /** Each modifier's two keys; shared with the canvas keys. */
+    public const array MODIFIER_KEYS = [
         'shift' => [Key::LEFT_SHIFT, Key::RIGHT_SHIFT],
         'ctrl' => [Key::LEFT_CTRL, Key::RIGHT_CTRL],
         'alt' => [Key::LEFT_ALT, Key::RIGHT_ALT],

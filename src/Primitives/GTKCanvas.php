@@ -119,27 +119,34 @@ class GTKCanvas extends TKCanvas implements GTKView
         return $this->scroll;
     }
 
-    /** A press on the canvas grabs focus while it is focusable: a GtkBox takes none by itself. */
+    /** A press on the canvas gives its shown child focus while it is focusable: a GtkBox takes none by itself. */
     private ?\GtkGestureClick $focus_click = null;
 
-    /** In the capture phase, so it runs before the window's Tab move: keeps Tab while the canvas takes it. */
-    private ?\GtkEventControllerKey $tab_keys = null;
+    /** The keys, commands and committed text of this canvas while focused (its capture-phase key controller keeps Tab while the canvas takes it). */
+    private ?GTKCanvasKeys $keys = null;
 
-    /** The controller that keeps Tab, for tests; null until the canvas was first made focusable. */
-    public function tabKeys(): ?\GtkEventControllerKey
+    /** The canvas's keys, for tests; null until the canvas was first made focusable. */
+    public function keys(): ?GTKCanvasKeys
     {
-        return $this->tab_keys;
+        return $this->keys;
+    }
+
+    /** The child the canvas shows (a lent GL area, else the picture): the widget that takes focus. */
+    public function focusWidget(): \GtkWidget
+    {
+        return $this->area ?? $this->picture;
     }
 
     /**
-     * The focusable property of the box and of the child it shows (the picture, or a lent GL area):
-     * a GtkBox moves Tab focus only among its children, so the child is the Tab stop. The click and
-     * Tab controllers are made on the first call and read the canvas's flags, so a later call
-     * changes only the properties.
+     * The focusable property of the children the box shows (the picture, or a lent GL area), never of
+     * the box: a GtkBox moves Tab focus only among its children, so the child is the canvas's one Tab
+     * stop, and a focusable box would be a second. The box's capture-phase controllers see the
+     * child's keys. The click and key controllers are made on the first call and read the canvas's
+     * flags, so a later call changes only the properties.
      */
     protected function applyFocusable(bool $on, bool $takesTab): void
     {
-        foreach ([$this->native, $this->picture, $this->area] as $widget) {
+        foreach ([$this->picture, $this->area] as $widget) {
             if (! is_null($widget)) {
                 g_object_set_property($widget, 'focusable', $on);
             }
@@ -161,14 +168,12 @@ class GTKCanvas extends TKCanvas implements GTKView
             $canvas = $self->get();
             if (! is_null($canvas) && $canvas->isFocusable()) {
                 // The user's move: the window's focus tracker posts it.
-                $canvas->native()->grabFocus();
+                $canvas->focusWidget()->grabFocus();
             }
         });
         $this->native->addController($this->focus_click);
-        $this->tab_keys = \GtkEventControllerKey::new();
-        $this->tab_keys->setPropagationPhase(\GtkPropagationPhase::CAPTURE);
-        $this->connect($this->tab_keys, 'key-pressed', static fn (\GtkEventControllerKey $controller, int $keyval): bool => ($self->get()?->takesTab() ?? false) && in_array($keyval, [0xFF09, 0xFE20], true));
-        $this->native->addController($this->tab_keys);
+        // Keys, commands and committed text while focused; Tab is kept only while takesTab().
+        $this->keys = new GTKCanvasKeys($this, $this->native);
     }
 
     /**

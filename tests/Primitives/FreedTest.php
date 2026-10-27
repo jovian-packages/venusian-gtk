@@ -40,6 +40,15 @@ it('frees a removed primitive', function (Closure $build): void {
     'button' => [fn (TKPrimitiveGroup $m) => $m->button('p', 'Go')],
     'image' => [fn (TKPrimitiveGroup $m) => $m->image('p')],
     'canvas' => [fn (TKPrimitiveGroup $m) => $m->canvas('p')],
+    'focused canvas with keys' => [function (TKPrimitiveGroup $m) {
+        $canvas = $m->canvas('p')->minSize(100, 40)->setFocusable();
+        $canvas->focus();
+        pumpFor(0.05);
+        g_signal_emit_by_name($canvas->keys()->controller(), 'key-pressed', 0x61, 0, 0);
+        g_signal_emit_by_name($canvas->keys()->imContext(), 'commit', 'a');
+
+        return $canvas;
+    }],
     'separator' => [fn (TKPrimitiveGroup $m) => $m->separator('p')],
     'spinner' => [fn (TKPrimitiveGroup $m) => $m->spinner('p')],
     'progress bar' => [fn (TKPrimitiveGroup $m) => $m->progressBar('p', 0.5)],

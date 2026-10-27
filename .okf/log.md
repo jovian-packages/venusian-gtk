@@ -1,5 +1,10 @@
 # Log
 
+## 2026-10-26
+
+* Canvas keys: `GTKCanvasKeys` replaces the canvas's Tab controller: a capture-phase key controller posts `KeyPressed`, `EditCommanded` (a platform-split table: Ctrl chords on Linux, Cmd and Option on macOS) and `KeyReleased`, and feeds a `GtkIMMulticontext` whose `commit` posts `TextCommitted`; a focused canvas takes every key. `GTKCanvas::tabKeys()` became `keys()`. [windows and menus](architecture/windows-and-menus.md)
+* A focusable canvas is one Tab stop: only its shown child is focusable (`focusWidget()`), not the box. Canvas releases post only after their press; a lone modifier's press carries its modifier and its release does not. [windows and menus](architecture/windows-and-menus.md)
+
 ## 2026-10-24
 
 * By-eye fix (C13): on macOS a window's bar showed no toggle or radio marks: its items named `win` actions, and GTK's macOS exporter reads states through the application's actions only. Bars on macOS now name `app` actions, held in the application while shown ([windows and menus](architecture/windows-and-menus.md), Scope).

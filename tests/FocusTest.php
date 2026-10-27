@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Surface\Contracts\Windows\Mail\View\EditCommanded;
 use Surface\Contracts\Windows\Mail\View\FocusGained;
 use Surface\Contracts\Windows\Mail\View\FocusLost;
+use Surface\Contracts\Windows\Mail\View\KeyPressed;
 use Surface\Contracts\Windows\Primitives\TableColumn;
 use Surface\Contracts\Windows\WindowException;
 
@@ -84,7 +86,8 @@ it('refuses focus to a canvas until it is focusable', function (): void {
     $canvas->focus();
     pumpFor(0.1);
     expect($canvas->hasFocus())->toBeTrue()
-        ->and(g_object_get_property($canvas->native(), 'focusable'))->toBeTrue();
+        ->and(g_object_get_property($canvas->focusWidget(), 'focusable'))->toBeTrue()
+        ->and(g_object_get_property($canvas->native(), 'focusable'))->toBeFalse();
     $main->close();
 });
 
@@ -109,18 +112,42 @@ it('stops Tab on a focusable canvas, and passes a default one', function (): voi
     $main->close();
 });
 
-it('keeps Tab on a canvas that takes it, and lets it through otherwise', function (): void {
+it('makes a focusable canvas one Tab stop: the next Tab leaves it', function (): void {
+    $main = driver()->open('main', 480, 320);
+    $column = $main->column('m');
+    $map = $column->canvas('map')->setFocusable();
+    $input = $column->textInput('input');
+    $main->present();
+    pumpFor(0.3);
+    $map->focus();
+    pumpFor(0.1);
+
+    $main->native()->childFocus(GtkDirectionType::TAB_FORWARD);
+    pumpFor(0.1);
+
+    expect($map->hasFocus())->toBeFalse()
+        ->and($main->focused())->toBe($input);
+    $main->close();
+});
+
+it('keeps Tab on a focused canvas that takes it, as its own key, and lets it through otherwise', function (): void {
     $main = driver()->open('main', 480, 320);
     $canvas = $main->column('m')->canvas('editor');
     $canvas->setFocusable(true, takesTab: true);
+    $main->present();
+    pumpFor(0.2);
+    $canvas->focus();
+    pumpFor(0.05);
+    takeMail(session());
 
-    expect(g_signal_emit_by_name($canvas->tabKeys(), 'key-pressed', 0xFF09, 0, 0))->toBeTrue()
-        ->and(g_signal_emit_by_name($canvas->tabKeys(), 'key-pressed', 0xFE20, 0, 0))->toBeTrue()
-        ->and(g_signal_emit_by_name($canvas->tabKeys(), 'key-pressed', 0x61, 0, 0))->toBeFalse()
-        ->and($canvas->tabKeys()->getPropagationPhase())->toBe(GtkPropagationPhase::CAPTURE);
+    expect(g_signal_emit_by_name($canvas->keys()->controller(), 'key-pressed', 0xFF09, 0, 0))->toBeTrue()
+        ->and(g_signal_emit_by_name($canvas->keys()->controller(), 'key-pressed', 0xFE20, 0, 0))->toBeTrue()
+        ->and($canvas->keys()->controller()->getPropagationPhase())->toBe(GtkPropagationPhase::CAPTURE)
+        ->and(array_map(fn (object $mail): string => $mail::class, array_values(array_filter(takeMail(session()), fn (object $mail): bool => $mail instanceof KeyPressed || $mail instanceof EditCommanded))))
+        ->toBe([KeyPressed::class, EditCommanded::class, KeyPressed::class, EditCommanded::class]);
 
     $canvas->setFocusable(true);
-    expect(g_signal_emit_by_name($canvas->tabKeys(), 'key-pressed', 0xFF09, 0, 0))->toBeFalse();
+    expect(g_signal_emit_by_name($canvas->keys()->controller(), 'key-pressed', 0xFF09, 0, 0))->toBeFalse();
     $main->close();
 });
 

@@ -248,3 +248,22 @@ it('puts back the context that was current when it lends', function (): void {
     $own->release();
 });
 
+
+it('keeps focus on a focused canvas across a lend and its reclaim, posting nothing', function (): void {
+    [$window, $canvas] = glCanvas();
+    $canvas->setFocusable();
+    $canvas->focus();
+    pumpFor(0.1);
+    viewMail(session());
+
+    $canvas->lend(SurfaceKind::GL_CONTEXT, new ContextBorrower);
+    pumpFor(0.1);
+    $lent = [$canvas->hasFocus(), $canvas->glArea()->hasFocus()];
+    $canvas->reclaim();
+    pumpFor(0.1);
+
+    expect($lent)->toBe([true, true])
+        ->and($canvas->hasFocus())->toBeTrue()
+        ->and($canvas->focusWidget()->hasFocus())->toBeTrue()
+        ->and(viewMail(session()))->toBe([]);
+});
