@@ -1,5 +1,9 @@
 # Log
 
+## 2026-10-27
+
+* Services: `GTKComposedAlert` for an alert with a style, a suppression box or a title (GtkWindow, transient and modal; icon, labels, check button, buttons; Return, Esc and close); `supports()` gives `AlertTitle`, not `ShowHidden`; file dialog filters as `GtkFileFilter`s in a `GListStore`; `GTKClipboard` reads text async, `hasText()` from the formats, `ClipboardChanged` from the `changed` signal. Needs ext-gtk's GtkImage, GtkFileFilter, GListStore, file dialog filters, clipboard text reads and GdkContentFormats. [windows and menus](architecture/windows-and-menus.md)
+
 ## 2026-10-26
 
 * Canvas keys: `GTKCanvasKeys` replaces the canvas's Tab controller: a capture-phase key controller posts `KeyPressed`, `EditCommanded` (a platform-split table: Ctrl chords on Linux, Cmd and Option on macOS) and `KeyReleased`, and feeds a `GtkIMMulticontext` whose `commit` posts `TextCommitted`; a focused canvas takes every key. `GTKCanvas::tabKeys()` became `keys()`. [windows and menus](architecture/windows-and-menus.md)

@@ -52,8 +52,11 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
             $this->applicationId(),
             (bool) $this->app->get('config')->get('bridge.gtk.unique', false),
         );
+        $session = $this->session->connect();
+        // The clipboard's changed signal reports another app's copy from the start, not from the app's first clipboard call.
+        $this->clipboard ??= new GTKClipboard($session);
 
-        return $this->session->connect();
+        return $session;
     }
 
     /** The desktop identity: config/app.php app.id, the name a packaged build's .desktop file carries. */
@@ -94,7 +97,7 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
     {
         $this->connect();
 
-        return $this->clipboard ??= new GTKClipboard();
+        return $this->clipboard;
     }
 
     /** GtkFileLauncher is GTK too: the session connects first. */
