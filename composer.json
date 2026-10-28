@@ -1,7 +1,7 @@
 {
     "name": "jovian/venusian-gtk",
     "description": "GTK 4 toolkit driver for the Venusian Surface bridge: connects PHP to GtkApplication, opens its windows and builds their menu bars through ext-gtk.",
-    "version": "0.10.5",
+    "version": "0.11.0",
     "type": "library",
     "keywords": [
         "framework",
@@ -13,7 +13,7 @@
         "linux"
     ],
     "license": "MIT",
-    "homepage": "https://venusian.projectsaturnstudios.com/ecosystem/jovian/venusian-gtk/0.10.x",
+    "homepage": "https://venusian.projectsaturnstudios.com/ecosystem/jovian/venusian-gtk/0.11.x",
     "support": {
         "issues": "https://github.com/jovian-packages/venusian-gtk/issues",
         "source": "https://github.com/jovian-packages/venusian-gtk"
@@ -25,21 +25,21 @@
         }
     ],
     "require": {
-        "php": "^8.4|^8.5|^8.6",
-        "ext-gtk": "^0.10.5",
-        "venusian-surface/bridge": "^0.10.1",
-        "venusian-surface/contracts": "^0.10.5",
-        "venusian-surface/human-input": "^0.10.1",
-        "venusian-surface/windows": "^0.10.5",
-        "venusian-voyager/nuts-and-bolts": "^0.10.1"
+        "php": "~8.4.27||^8.5.12",
+        "ext-gtk": "^0.11.0",
+        "venusian-surface/bridge": "^0.11.0",
+        "venusian-surface/contracts": "^0.11.0",
+        "venusian-surface/human-input": "^0.11.0",
+        "venusian-surface/windows": "^0.11.0",
+        "venusian-voyager/nuts-and-bolts": "^0.11.0"
     },
     "require-dev": {
-        "jovian/venusian-opengl": "^0.10.0",
-        "jovian/venusian-vulkan": "^0.10.0",
+        "jovian/venusian-opengl": "^0.11.0",
+        "jovian/venusian-vulkan": "^0.11.0",
         "pestphp/pest": "^4",
-        "venusian-surface/drawing": "^0.10.1",
-        "venusian-voyager/config": "^0.10.1",
-        "venusian-voyager/vessel": "^0.10.1"
+        "venusian-surface/drawing": "^0.11.0",
+        "venusian-voyager/config": "^0.11.0",
+        "venusian-voyager/vessel": "^0.11.0"
     },
     "suggest": {
         "ext-appkit": "Required on macOS: GTK runs on NSApplication there and only AppKit can bring the process forward when a window is presented.",
@@ -64,7 +64,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.10.x-dev"
+            "dev-main": "0.11.x-dev"
         },
         "venusian": {
             "providers": [

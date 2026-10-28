@@ -1,5 +1,10 @@
 # Log
 
+## 2026-10-28
+
+* **Version**: 0.11.0 with the Venusian 0.11 ecosystem: `dev-main` → `0.11.x-dev`, `version` 0.11.0, its extensions, `venusian-surface/*`, `venusian-voyager/*` and the jovian siblings at `^0.11.0`, PHP `~8.4.27||^8.5.12`, homepage `0.11.x`. No API change. 415 passed, 10 skipped on Homebrew PHP 8.4 NTS and ZTS (timing-sensitive Tree and Session rows vary run to run); 413 passed, 13 skipped, 1 failed on the Pi (8.4 ZTS).
+* **Open — Pi resize**: on the Pi (Wayland) `SplitTabsTest` "posts nothing when a window resizes" fails every run: `setDefaultSize(900, 400)` on a shown window does not grow the split past 600.
+
 ## 2026-10-27
 
 * Services: `GTKComposedAlert` for an alert with a style, a suppression box or a title (GtkWindow, transient and modal; icon, labels, check button, buttons; Return, Esc and close); `supports()` gives `AlertTitle`, not `ShowHidden`; file dialog filters as `GtkFileFilter`s in a `GListStore`; `GTKClipboard` reads text async, `hasText()` from the formats, `ClipboardChanged` from the `changed` signal. Needs ext-gtk's GtkImage, GtkFileFilter, GListStore, file dialog filters, clipboard text reads and GdkContentFormats. [windows and menus](architecture/windows-and-menus.md)
