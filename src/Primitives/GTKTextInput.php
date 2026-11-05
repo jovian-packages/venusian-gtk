@@ -10,6 +10,7 @@ use Jovian\Toolkits\GTK\Windows\GTKWindow;
 use Surface\Contracts\Windows\Mail\View\TextChanged;
 use Surface\Contracts\Windows\Mail\View\TextSubmitted;
 use Surface\Contracts\Windows\Primitives\Placement;
+use Surface\Contracts\Windows\Styling\TextAlignment;
 use Surface\Contracts\Windows\WindowException;
 use Surface\Windows\Primitives\TKPrimitiveGroup;
 use Surface\Windows\Primitives\TKTextInput;
@@ -95,6 +96,15 @@ class GTKTextInput extends TKTextInput implements GTKView
     protected function applyPlaceholder(?string $placeholder): void
     {
         $this->widgetEntry()->setPlaceholderText($placeholder);
+    }
+
+    protected function applyAlignment(TextAlignment $alignment): void
+    {
+        g_object_set_property($this->widgetEntry(), 'xalign', match ($alignment) {
+            TextAlignment::LEFT => 0.0,
+            TextAlignment::CENTER => 0.5,
+            TextAlignment::RIGHT => 1.0,
+        });
     }
 
     protected function widgetEntry(): \GtkEntry

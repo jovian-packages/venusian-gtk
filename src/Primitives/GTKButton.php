@@ -12,6 +12,7 @@ use Surface\Contracts\Windows\Mail\View\ButtonClicked;
 use Surface\Contracts\Windows\Primitives\ButtonRole;
 use Surface\Contracts\Windows\Primitives\ImagePosition;
 use Surface\Contracts\Windows\Primitives\Placement;
+use Surface\Contracts\Windows\Styling\TextAlignment;
 use Surface\Contracts\Windows\WindowException;
 use Surface\Windows\Primitives\TKButton;
 use Surface\Windows\Primitives\TKPrimitiveGroup;
@@ -47,6 +48,7 @@ class GTKButton extends TKButton implements GTKView
     {
         if (is_null($this->image)) {
             $this->widgetButton()->setLabel($label);
+            $this->alignChild();
         } else {
             $this->applyImage($this->image, $this->image_position, $this->image_scale);
         }
@@ -57,10 +59,25 @@ class GTKButton extends TKButton implements GTKView
     {
         if (is_null($image)) {
             $this->widgetButton()->setLabel($this->label);
-
-            return;
+        } else {
+            $this->widgetButton()->setChild(self::imageChild($image, $position, $scale, $this->label));
         }
-        $this->widgetButton()->setChild(self::imageChild($image, $position, $scale, $this->label));
+        $this->alignChild();
+    }
+
+    protected function applyAlignment(TextAlignment $alignment): void
+    {
+        $this->alignChild();
+    }
+
+    /** GtkButton has no text alignment: its child (the label, or the image box) sits at the start, centre or end. */
+    private function alignChild(): void
+    {
+        $this->widgetButton()->getChild()?->setHalign(match ($this->alignment) {
+            TextAlignment::LEFT => \GtkAlign::START,
+            TextAlignment::CENTER => \GtkAlign::CENTER,
+            TextAlignment::RIGHT => \GtkAlign::END,
+        });
     }
 
     protected function applyBordered(bool $on): void

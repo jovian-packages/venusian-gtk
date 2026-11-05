@@ -363,6 +363,9 @@ trait GTKPrimitive
         if ($font instanceof FontSpec) {
             $declarations[] = sprintf('font-size: %spx;', rtrim(rtrim(number_format($font->size, 2, '.', ''), '0'), '.'));
             $declarations[] = "font-weight: {$font->weight->toCssWeight()};";
+            if ($font->italic) {
+                $declarations[] = 'font-style: italic;';
+            }
             if (! is_null($font->family)) {
                 $declarations[] = 'font-family: '.self::cssString($font->family).';';
             } elseif ($font->monospace) {

@@ -3,6 +3,7 @@
 namespace Jovian\Toolkits\GTK\Bridge;
 
 use Jovian\Toolkits\GTK\Contracts\Bridge\GTKBridgeDriver as BridgeContract;
+use Jovian\Toolkits\GTK\Primitives\Concerns\GTKFonts;
 use Jovian\Toolkits\GTK\Services\GTKClipboard;
 use Jovian\Toolkits\GTK\Services\GTKDesktop;
 use Jovian\Toolkits\GTK\Services\GTKDialogs;
@@ -11,6 +12,8 @@ use Jovian\Toolkits\GTK\Windows\GTKWindow;
 use Surface\Bridge\ToolkitBridgeDriver;
 use Surface\Contracts\Bridge\BridgeException;
 use Surface\Contracts\Windows\Menus\MenuProfile as MenuProfileContract;
+use Surface\Contracts\Windows\Styling\FontMetrics;
+use Surface\Contracts\Windows\Styling\FontSpec;
 use Surface\Contracts\Windows\ToolkitWindow;
 use Surface\Contracts\Windows\ToolkitWindowDriver;
 use Surface\Contracts\Windows\WindowException;
@@ -41,6 +44,8 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
     protected ?MenuStates $default_states = null;
 
     protected ?GTKDialogs $dialogs = null;
+
+    protected ?\GtkLabel $metrics_label = null;
 
     protected ?GTKClipboard $clipboard = null;
 
@@ -106,6 +111,14 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
         $this->connect();
 
         return $this->desktop ??= new GTKDesktop();
+    }
+
+    /** Pango measures through a widget's context: one label, never shown, kept for it. */
+    public function fontMetrics(FontSpec $font): FontMetrics
+    {
+        $this->connect();
+
+        return GTKFonts::metrics(($this->metrics_label ??= \GtkLabel::new(''))->getPangoContext(), $font);
     }
 
     public function has(string $name): bool

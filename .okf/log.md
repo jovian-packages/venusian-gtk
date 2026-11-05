@@ -1,5 +1,9 @@
 # Log
 
+## 2026-11-04
+
+* Native text: `GTKFonts` (`Primitives/Concerns`) turns a FontSpec into the Pango description the widget's CSS gives it (family or Monospace, italic, weight name, px size) and measures it; the driver's `fontMetrics()` reads through one never-shown GtkLabel's Pango context, made after the session connects (a spec with no family measures fontconfig's default sans). CSS `font-style: italic`. Text areas: one cached tag per flag (`weight` 700, `style` italic, `underline` single, `strikethrough`), cleared with the run tags; a one-stop PangoTabArray at columns × the font's character width, re-set on a font change; `justification`. Inputs: `xalign`. Buttons: the child (label or image box) at `halign` start, centre or end, re-applied when the label or image replaces it.
+
 ## 2026-10-28
 
 * **Version**: 0.11.0 with the Venusian 0.11 ecosystem: `dev-main` → `0.11.x-dev`, `version` 0.11.0, its extensions, `venusian-surface/*`, `venusian-voyager/*` and the jovian siblings at `^0.11.0`, PHP `~8.4.27||^8.5.12`, homepage `0.11.x`. No API change. 415 passed, 10 skipped on Homebrew PHP 8.4 NTS and ZTS (timing-sensitive Tree and Session rows vary run to run); 413 passed, 13 skipped, 1 failed on the Pi (8.4 ZTS).

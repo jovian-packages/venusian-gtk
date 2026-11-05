@@ -4,6 +4,7 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Closure;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
+use Jovian\Toolkits\GTK\Primitives\Concerns\GTKFonts;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKTextStyle;
 use Jovian\Toolkits\GTK\Windows\GTKMacTextKeys;
@@ -12,6 +13,7 @@ use Surface\Contracts\Windows\Mail\View\TextChanged;
 use Surface\Contracts\Windows\Mail\View\ViewScrolled;
 use Surface\Contracts\Windows\Primitives\Placement;
 use Surface\Contracts\Windows\Styling\FontSpec;
+use Surface\Contracts\Windows\Styling\TextAlignment;
 use Surface\Contracts\Windows\Styling\ScrollPosition;
 use Surface\Contracts\Windows\Styling\TextRangeStyle;
 use Surface\Contracts\Windows\WindowException;
@@ -257,6 +259,28 @@ class GTKTextArea extends TKTextArea implements GTKView
     protected function applyFont(FontSpec $font): void
     {
         $this->restyleText();
+        $this->applyTabWidth($this->tab_width);
+    }
+
+    /** One stop, in pixels, which Pango repeats at the same interval: columns × the font's character width. */
+    protected function applyTabWidth(int $columns): void
+    {
+        $context = $this->text_view->getPangoContext();
+        $width = is_null($this->font)
+            ? $context->getMetrics(null, null)->getApproximateCharWidth() / PANGO_SCALE
+            : GTKFonts::metrics($context, $this->font)->averageCharWidth;
+        $tabs = \PangoTabArray::new(1, true);
+        $tabs->setTab(0, \PangoTabAlign::LEFT, (int) round($columns * $width));
+        $this->relayout(fn () => $this->text_view->setTabs($tabs));
+    }
+
+    protected function applyAlignment(TextAlignment $alignment): void
+    {
+        $this->relayout(fn () => g_object_set_property($this->text_view, 'justification', match ($alignment) {
+            TextAlignment::LEFT => \GtkJustification::LEFT->value,
+            TextAlignment::CENTER => \GtkJustification::CENTER->value,
+            TextAlignment::RIGHT => \GtkJustification::RIGHT->value,
+        }));
     }
 
     protected function applyTextColor(?Color $color): void
@@ -299,7 +323,7 @@ class GTKTextArea extends TKTextArea implements GTKView
             $this->untag($this->line_tags);
             $this->line_tags = [];
             foreach ($backgrounds as $line => $color) {
-                $tag = $this->tag('paragraph-background', $color);
+                $tag = $this->tag('paragraph-background', $color->toCss());
                 // Past the last line GTK's iter is the buffer's end: the last line's tag runs to it.
                 $buffer->applyTag($tag, $this->lineIter($line), $this->lineIter($line + 1));
                 $this->line_tags[spl_object_id($tag)] = $tag;
@@ -311,6 +335,7 @@ class GTKTextArea extends TKTextArea implements GTKView
     {
         $applied = array_map(fn (TextRangeStyle $style): array => [
             $style->line, $style->start, $style->length, $style->foreground?->toCss(), $style->background?->toCss(),
+            $style->bold, $style->italic, $style->underline, $style->strikeout,
         ], $styles);
         if ($applied === $this->applied_ranges) {
             return;
@@ -321,11 +346,19 @@ class GTKTextArea extends TKTextArea implements GTKView
             $this->untag($this->range_tags);
             $this->range_tags = [];
             foreach ($styles as $style) {
-                foreach (['foreground' => $style->foreground, 'background' => $style->background] as $property => $color) {
-                    if (is_null($color)) {
+                // weight 700, PANGO_STYLE_ITALIC, PANGO_UNDERLINE_SINGLE: g_object_set_property takes the ints for the enums.
+                foreach ([
+                    'foreground' => $style->foreground?->toCss(),
+                    'background' => $style->background?->toCss(),
+                    'weight' => $style->bold ? 700 : null,
+                    'style' => $style->italic ? 2 : null,
+                    'underline' => $style->underline ? 1 : null,
+                    'strikethrough' => $style->strikeout ? true : null,
+                ] as $property => $value) {
+                    if (is_null($value)) {
                         continue;
                     }
-                    $tag = $this->tag($property, $color);
+                    $tag = $this->tag($property, $value);
                     $buffer->applyTag(
                         $tag,
                         $this->lineOffsetIter($style->line, $style->start),
@@ -618,14 +651,14 @@ class GTKTextArea extends TKTextArea implements GTKView
     }
 
     /**
-     * The tag for a role (a GtkTextTag colour property) and colour, made and added once.
+     * The tag for a GtkTextTag property and value (a CSS colour, a weight, a flag), made and added once.
      */
-    private function tag(string $property, Color $color): \GtkTextTag
+    private function tag(string $property, string|int|bool $value): \GtkTextTag
     {
-        $key = "{$property}|{$color->toCss()}";
+        $key = "{$property}|".var_export($value, true);
         if (! isset($this->tags[$key])) {
             $tag = \GtkTextTag::new(null);
-            g_object_set_property($tag, $property, $color->toCss());
+            g_object_set_property($tag, $property, $value);
             $this->text_view->getBuffer()->getTagTable()->add($tag);
             $this->tags[$key] = $tag;
         }
