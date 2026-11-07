@@ -7,6 +7,7 @@ use Jovian\Toolkits\GTK\Primitives\Concerns\GTKFonts;
 use Jovian\Toolkits\GTK\Services\GTKClipboard;
 use Jovian\Toolkits\GTK\Services\GTKDesktop;
 use Jovian\Toolkits\GTK\Services\GTKDialogs;
+use Jovian\Toolkits\GTK\Services\GTKSystemAccent;
 use Jovian\Toolkits\GTK\Windows\GTKMenuBar;
 use Jovian\Toolkits\GTK\Windows\GTKWindow;
 use Surface\Bridge\ToolkitBridgeDriver;
@@ -50,6 +51,8 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
     protected ?GTKClipboard $clipboard = null;
 
     protected ?GTKDesktop $desktop = null;
+
+    protected ?GTKSystemAccent $systemAccent = null;
 
     public function connect(): GTKSession
     {
@@ -111,6 +114,12 @@ class GTKBridgeDriver extends ToolkitBridgeDriver implements BridgeContract, Too
         $this->connect();
 
         return $this->desktop ??= new GTKDesktop();
+    }
+
+    /** GSettings is GIO alone: no session is needed to read the accent. */
+    public function systemAccent(): GTKSystemAccent
+    {
+        return $this->systemAccent ??= new GTKSystemAccent();
     }
 
     /** Pango measures through a widget's context: one label, never shown, kept for it. */
