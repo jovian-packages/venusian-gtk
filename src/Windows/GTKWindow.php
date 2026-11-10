@@ -61,6 +61,8 @@ class GTKWindow implements ToolkitWindow
 
     protected GTKRightClicks $right_clicks;
 
+    protected GTKGroupClicks $group_clicks;
+
     protected GTKCanvasClicks $canvas_clicks;
 
     protected GTKCanvasPointer $canvas_pointer;
@@ -149,6 +151,7 @@ class GTKWindow implements ToolkitWindow
             g_signal_connect($surface, 'notify::scale', fn () => $this->scaleChanged());
         });
         $this->right_clicks = new GTKRightClicks($this, $this->window, $this->content, $session);
+        $this->group_clicks = new GTKGroupClicks($this, $this->window, $session);
         $this->canvas_clicks = new GTKCanvasClicks($this, $this->window, $session);
         // GTK runs a widget's newest controller first (gtkwidget.c prepends), so the pointer, added
         // after the right clicks, sees a press before a context menu opens for it.
@@ -406,6 +409,12 @@ class GTKWindow implements ToolkitWindow
     public function rightClicks(): GTKRightClicks
     {
         return $this->right_clicks;
+    }
+
+    /** The window's clicks on clickable groups, posted as mail. */
+    public function groupClicks(): GTKGroupClicks
+    {
+        return $this->group_clicks;
     }
 
     public function canvasClicks(): GTKCanvasClicks

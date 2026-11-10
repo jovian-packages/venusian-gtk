@@ -17,6 +17,7 @@ use Jovian\Toolkits\GTK\Windows\GTKWindow;
 use Surface\Contracts\Windows\Menus\ContextMenu as ContextMenuContract;
 use Surface\Contracts\Windows\Primitives\Align;
 use Surface\Contracts\Windows\Primitives\TKPrimitive;
+use Surface\Contracts\Windows\Primitives\TKTransition;
 use Surface\Contracts\Windows\Styling\FontSpec;
 use Surface\Contracts\Windows\WindowException;
 use Surface\NutsAndBolts\Color;
@@ -33,6 +34,12 @@ trait GTKPrimitive
     protected GtkWidget $native;
 
     protected ?GtkCssProvider $style_provider = null;
+
+    /** The running transition's stylesheet, apart from restyle()'s. */
+    protected ?GtkCssProvider $transition_provider = null;
+
+    /** Bumped by every transition and stop: a timeout from an older one does nothing. */
+    protected int $transition_generation = 0;
 
     /**
      * The stylesheet the provider holds, as loaded.
@@ -253,6 +260,95 @@ trait GTKPrimitive
         $this->restyle();
     }
 
+    protected function applyCornerRadius(float $radius): void
+    {
+        $this->restyle();
+    }
+
+    protected function applyOpacity(float $opacity): void
+    {
+        $this->native->setOpacity($opacity);
+    }
+
+    /**
+     * A CSS transition on opacity and transform, in its own provider (restyle() never touches it).
+     * tk-away holds the transparent, offset state; tk-moving carries the transition. Entering starts
+     * at tk-away and drops it one tick later, so GTK draws the first frame away and then animates
+     * back; leaving adds both. A timeout lands it; a newer transition makes an older one's ticks stale.
+     */
+    protected function applyTransition(TKTransition $transition, bool $entering, float $seconds, ?Closure $done): void
+    {
+        $this->stopTransition();
+        $generation = ++$this->transition_generation;
+
+        [$dx, $dy] = $transition->offset();
+        $selector = '.'.$this->styleClass();
+        $this->transition_provider = GtkCssProvider::new();
+        $this->transition_provider->loadFromString(
+            "{$selector}.tk-moving { transition: opacity {$seconds}s ease-out, transform {$seconds}s ease-out; } "
+            ."{$selector}.tk-away { opacity: 0; transform: translate({$dx}px, {$dy}px); }"
+        );
+        gtk_style_context_add_provider_for_display(GdkDisplay::getDefault(), $this->transition_provider, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+        $current = fn (): bool => $generation === $this->transition_generation && ! $this->removed;
+        $land = function () use ($current, $done): bool {
+            if ($current()) {
+                $this->native->removeCssClass('tk-moving');
+                if (! is_null($done)) {
+                    $done();
+                }
+                // After $done hid it: back to rest for the next time it shows.
+                $this->native->removeCssClass('tk-away');
+            }
+
+            return false;
+        };
+
+        if ($entering) {
+            $this->native->addCssClass('tk-away');
+            $begin = function () use ($current, $seconds, $land): bool {
+                if ($current()) {
+                    $this->native->addCssClass('tk-moving');
+                    $this->native->removeCssClass('tk-away');
+                    g_timeout_add((int) round($seconds * 1000), $land);
+                }
+
+                return false;
+            };
+
+            // GTK animates a style change only from a style it has drawn: a widget not on screen yet
+            // (its window not mapped, or shown inside a group that only now shows) waits for its map,
+            // then a frame or so, before it leaves tk-away.
+            if ($this->native->getMapped()) {
+                g_timeout_add(50, $begin);
+            } else {
+                $mapped = 0;
+                $mapped = g_signal_connect($this->native, 'map', function () use (&$mapped, $begin): void {
+                    g_signal_handler_disconnect($this->native, $mapped);
+                    g_timeout_add(50, $begin);
+                });
+            }
+
+            return;
+        }
+
+        $this->native->addCssClass('tk-moving');
+        $this->native->addCssClass('tk-away');
+        g_timeout_add((int) round($seconds * 1000), $land);
+    }
+
+    /** Drop a running transition's classes and stylesheet; its pending ticks see a newer generation. */
+    protected function stopTransition(): void
+    {
+        $this->transition_generation++;
+        $this->native->removeCssClass('tk-moving');
+        $this->native->removeCssClass('tk-away');
+        if (! is_null($this->transition_provider)) {
+            gtk_style_context_remove_provider_for_display(GdkDisplay::getDefault(), $this->transition_provider);
+            $this->transition_provider = null;
+        }
+    }
+
     protected function applyFill(bool $horizontal, bool $vertical): void
     {
         $this->native->setHexpand($horizontal);
@@ -315,6 +411,7 @@ trait GTKPrimitive
         });
 
         $this->dropStyle();
+        $this->stopTransition();
     }
 
     /**
@@ -350,6 +447,9 @@ trait GTKPrimitive
         if (! is_null($background)) {
             $paint[] = "background-color: {$background->toCss()};";
             $paint[] = 'background-image: none;';
+        }
+        if ($this->corner_radius > 0.0) {
+            $paint[] = "border-radius: {$this->corner_radius}px;";
         }
 
         $text_color = property_exists($this, 'text_color') ? $this->text_color : null;

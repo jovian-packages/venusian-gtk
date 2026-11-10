@@ -60,18 +60,31 @@ it('fills grid cells and absolute frames', function (): void {
         ->and($grid->native()->getChildAt(1, 1))->toBe($b->native())
         ->and($grid->native()->getRowSpacing())->toBe(2)
         ->and($grid->native()->getColumnSpacing())->toBe(2)
-        ->and($fixed->native()->getChildPosition($c->native()))->toBe([10.0, 20.0])
+        ->and($fixed->native()->getChildPosition($fixed->holderOf($c)))->toBe([10.0, 20.0])
         ->and($c->size())->toBe([30, 40]);
 
     $fixed->move($c, 15, 25)->resize($c, 50, 60);
     pumpFor(0.1);
     expect($c->size())->toBe([50, 60])
-        ->and($fixed->native()->getChildPosition($c->native()))->toBe([15.0, 25.0]);
+        ->and($fixed->native()->getChildPosition($fixed->holderOf($c)))->toBe([15.0, 25.0]);
 
     // A minimum size above the frame wins on that axis; the frame holds the other.
     $c->minSize(70, 10);
     pumpFor(0.1);
     expect($c->size())->toBe([70, 60]);
+});
+
+it('measures a fixed by its frames, not by its children\'s natural sizes', function (): void {
+    $window = driver()->open('main', 400, 300);
+    $fixed = $window->row('r')->fixed('f');
+    $image = $fixed->at(0, 0, 40, 40)->image('icon', __DIR__.'/../fixtures/icon-128.png');
+    $window->present();
+    pumpFor(0.2);
+
+    [$wide, $tall] = [$fixed->native()->measure(GtkOrientation::HORIZONTAL, -1), $fixed->native()->measure(GtkOrientation::VERTICAL, -1)];
+
+    expect([$wide['minimum'], $wide['natural'], $tall['minimum'], $tall['natural']])->toBe([40, 40, 40, 40])
+        ->and($image->size())->toBe([40, 40]);
 });
 
 it('posts WindowResized once per pump with the last size', function (): void {
@@ -194,3 +207,14 @@ function nativeOrder(GtkWidget $parent): array
 
     return $order;
 }
+
+it('writes a corner radius into the widget\'s style, and drops it at 0', function (): void {
+    $window = driver()->open('main', 300, 200);
+    $card = $window->column('m')->column('card');
+
+    $card->setBackground(Color::rgb(255, 0, 0))->setCornerRadius(8.0);
+    expect($card->stylesheet())->toBe(".{$card->styleClass()} { background-color: rgba(255, 0, 0, 1); background-image: none; border-radius: 8px; }");
+
+    $card->setCornerRadius(0.0);
+    expect($card->stylesheet())->toBe(".{$card->styleClass()} { background-color: rgba(255, 0, 0, 1); background-image: none; }");
+});
