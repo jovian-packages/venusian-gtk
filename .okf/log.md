@@ -1,5 +1,13 @@
 # Log
 
+## 2026-11-10
+
+* [Primitives](architecture/primitives.md): `mintWebView` refuses with `WindowException` (no WebKitGTK binding; none for GTK 4 on macOS). `tests/Primitives/VideoTest.php`: 2 passed, 1 skipped.
+* [Primitives](architecture/primitives.md): collection cells show `CollectionItem::$icons` on dark discs over the top-right corner, left of the action button. `tests/Primitives/ItemViewsTest.php`: 6 passed.
+* [Primitives](architecture/primitives.md): collection view clears the hover selection when the pointer leaves the grid (single-click activation selects the hovered cell and GTK kept it). `tests/Primitives/ItemViewsTest.php`: 5 passed.
+* [Primitives](architecture/primitives.md): collection view clears its selection after an activation. `tests/Primitives/ItemViewsTest.php`: 4 passed.
+* [Primitives](architecture/primitives.md): segmented control, collection view and list view (`GTKSegmentedControl`, `GTKCollectionView`, `GTKListView`, model and scrolling in `Concerns/GTKItemView`). `tests/Primitives/ItemViewsTest.php` (3 passed, no window shown; GTK sets cells up only when mapped, so cell contents wait for a shown-window run).
+
 ## 2026-11-04
 
 * Native text: `GTKFonts` (`Primitives/Concerns`) turns a FontSpec into the Pango description the widget's CSS gives it (family or Monospace, italic, weight name, px size) and measures it; the driver's `fontMetrics()` reads through one never-shown GtkLabel's Pango context, made after the session connects (a spec with no family measures fontconfig's default sans). CSS `font-style: italic`. Text areas: one cached tag per flag (`weight` 700, `style` italic, `underline` single, `strikethrough`), cleared with the run tags; a one-stop PangoTabArray at columns × the font's character width, re-set on a font change; `justification`. Inputs: `xalign`. Buttons: the child (label or image box) at `halign` start, centre or end, re-applied when the label or image replaces it.

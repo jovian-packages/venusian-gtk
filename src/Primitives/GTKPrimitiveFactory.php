@@ -31,12 +31,16 @@ use Surface\Contracts\Windows\Primitives\TKSpinner;
 use Surface\Contracts\Windows\Primitives\TKSplitView;
 use Surface\Contracts\Windows\Primitives\TKTabView;
 use Surface\Contracts\Windows\Primitives\TKTable;
+use Surface\Contracts\Windows\Primitives\TKSegmentedControl;
+use Surface\Contracts\Windows\Primitives\TKCollectionView;
+use Surface\Contracts\Windows\Primitives\TKListView;
 use Surface\Contracts\Windows\Primitives\TKTextArea;
 use Surface\Contracts\Windows\Primitives\TKTextInput;
 use Surface\Contracts\Windows\Primitives\TKToggle;
 use Surface\Contracts\Windows\Primitives\TKToggleButton;
 use Surface\Contracts\Windows\Primitives\TKTree;
 use Surface\Contracts\Windows\Primitives\TKVideo;
+use Surface\Contracts\Windows\Primitives\TKWebView;
 use Surface\Contracts\Windows\WindowException;
 use Surface\Windows\Primitives\TKPrimitiveGroup;
 
@@ -151,6 +155,21 @@ class GTKPrimitiveFactory implements PrimitiveFactory
         return new GTKTable($name, $this->window, self::parent($host), self::placement($host), $columns, $rows);
     }
 
+    public function mintSegmentedControl(GroupContract $host, string $name, array $segments, int $selected): TKSegmentedControl
+    {
+        return new GTKSegmentedControl($name, $this->window, self::parent($host), self::placement($host), $segments, $selected);
+    }
+
+    public function mintCollectionView(GroupContract $host, string $name, array $items): TKCollectionView
+    {
+        return new GTKCollectionView($name, $this->window, self::parent($host), self::placement($host), $items);
+    }
+
+    public function mintListView(GroupContract $host, string $name, array $items): TKListView
+    {
+        return new GTKListView($name, $this->window, self::parent($host), self::placement($host), $items);
+    }
+
     public function mintTree(GroupContract $host, string $name, array $columns, array $nodes): TKTree
     {
         return new GTKTree($name, $this->window, self::parent($host), self::placement($host), $columns, $nodes);
@@ -159,6 +178,15 @@ class GTKPrimitiveFactory implements PrimitiveFactory
     public function mintVideo(GroupContract $host, string $name, ?string $file): TKVideo
     {
         return new GTKVideo($name, $this->window, self::parent($host), self::placement($host), $file);
+    }
+
+    /**
+     * GTK 4's web view is WebKitGTK 6 (Linux), which ext-gtk does not bind; on macOS there is none.
+     * @throws WindowException
+     */
+    public function mintWebView(GroupContract $host, string $name): TKWebView
+    {
+        throw new WindowException('TKWebView needs WebKitGTK 6, which ext-gtk does not bind; on macOS GTK 4 has no web engine.');
     }
 
     public function mintColumn(?GroupContract $host, string $name, int $spacing, int $padding): TKColumn

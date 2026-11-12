@@ -78,3 +78,10 @@ it('refuses a video where GTK has no media backend', function (): void {
 
     return mediaBackend();
 }, 'this machine has a GTK media backend');
+
+it('refuses a web view: ext-gtk binds no WebKitGTK', function (): void {
+    $column = driver()->open('main', 200, 200)->column('m');
+
+    expect(fn () => $column->webView('w'))->toThrow(WindowException::class, 'WebKitGTK 6')
+        ->and($column->view('w'))->toBeNull();
+});

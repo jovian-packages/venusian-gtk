@@ -5,7 +5,7 @@ description: GTK concretes of Surface's TK primitives - factory, containers, lea
 resource: src/Primitives/
 tags: [gtk, primitives, layout, mail]
 status: draft
-generated: { by: claude/opus-5.5, at: 2026-10-19T03:00:00Z }
+generated: { by: claude-opus/5.5, at: 2026-11-11T09:30:00Z }
 sources:
   - id: trait
     resource: src/Primitives/Concerns/GTKPrimitive.php
@@ -76,6 +76,9 @@ Mail rules: interaction mail only through `post()` = not echoing a code write (`
 | datepicker | `GtkCalendar`; days only (years 1-9999, refused otherwise before any change), reported as local midnight; always shows a day, `date()` null until set or picked | `day-selected` and `notify::day/month/year` (the month/year arrows and scroll move the day with no `day-selected`) schedule one idle check: DateChanged once with the settled day, only when it differs from `date()` |
 | table | `GtkColumnView` in `GtkScrolledWindow`, `GtkSingleSelection` (autoselect off, can unselect) over a `GtkStringList` of row indexes; per column a `GtkSignalListItemFactory` (setup label, bind cell text); rows kept up to the first changed one, the rest replaced in one `splice` (an append = one item) | `notify::selected` → RowSelected(row, cells) |
 | tree | `GtkColumnView` in `GtkScrolledWindow`, `GtkSingleSelection` (autoselect off, can unselect) over a `GtkTreeListModel` (passthrough and autoexpand off) of `GtkStringList`s of node ids; the create callback, held weakly against the tree, returns a node's child list or null for a leaf. The first column's factory wraps the label in a `GtkTreeExpander`. Its bind sets the list row and connects the row's `notify::expanded`, and its unbind disconnects it. Every bind sets the cell text and swaps the colour class. Colours come from one provider per tree (`.tk-<uuid> .tk-<uuid>-c<n> { color }`, `colorStylesheet()`). A node's row is reached from the roots by its path with `getChildRow`. Collapsing a row tears its descendants' rows down, and each one notifies; a row the model no longer shows for its node is ignored | `notify::selected` → NodeSelected when the selected node changed; row `notify::expanded` → NodeExpanded, then the record is re-applied below an opened row; `activate` → NodeActivated |
+| segmented control | horizontal `GtkBox` with the `linked` class, one `GtkToggleButton` per segment in one `setGroup` group | `toggled` to active on a segment other than Surface's → SelectionChanged(index, label) |
+| collection view | `GtkGridView` (single-click activate, 1–24 columns) in `GtkScrolledWindow`, `GtkSingleSelection` (autoselect off, can unselect) over a `GtkStringList` of one empty string per item (rows bind by position; insert, removal, replace and update are one `splice`); the factory's cell is a `GtkOverlay`: `GtkBox` of a covering `GtkPicture` (size request = cell size less a 24 px caption) and an ellipsized caption, and a top-right corner `GtkBox` (overlay, 6 px in) of the status icons (`GtkImage` from file, 16 px, `.surface-item-status`: a dark disc with a bright rim) then a frameless `GtkButton` holding a `GtkImage` (from file, 24 px); item CSS (`.surface-item-*`) goes in once per display | `activate` → ItemActivated on an enabled item, then the selection is cleared (no cell stays highlighted; AppKit's grid does the same); single-click activation selects the hovered cell, so a `GtkEventControllerMotion` `leave` clears it too; the corner button's `clicked` → ItemActionClicked at the list item's position; vertical adjustment `value-changed` → ViewScrolled while watched |
+| list view | `GtkListView` in `GtkScrolledWindow` over the same model; the factory's row: `GtkOverlay` of a covering 3:2 `GtkPicture` with the accent badge label (`@accent_bg_color`) at its top-left, then a column of title (semibold, ellipsized) + status icons (`GtkImage`, 14 px), detail (`GtkLabel` wrap, `setLines(3)`, ellipsize end, 11 px, 65% opacity) and the action button at the end; a disabled row gets `.surface-item-disabled` (50% opacity) and an insensitive button | `activate` (double click, Enter, Return) → ItemActivated on an enabled row; the button's `clicked` → ItemActionClicked; ViewScrolled while watched |
 | video | `GtkVideo` + one `GtkMediaFile` per file | `notify::playing` → VideoPlaying/VideoPaused, `notify::ended` → VideoEnded, `notify::error` → VideoFailed; GTK loops a looping stream itself; removal pauses |
 
 # Watched sizes
@@ -86,3 +89,7 @@ GTK has no per-widget resize signal. `GTKSession::watch(primitive)` records its 
 [^window]: GTKWindow
 [^trait]: GTKPrimitive trait
 [^session]: GTKSession
+
+# Web view
+
+`mintWebView` throws `WindowException`: GTK 4's web view is WebKitGTK 6 (`webkitgtk-6.0`, Linux), which ext-gtk does not bind, and Homebrew's webkitgtk is the GTK 3, Linux-only port, so macOS GTK 4 has none.
