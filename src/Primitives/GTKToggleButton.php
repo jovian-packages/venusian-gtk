@@ -5,14 +5,14 @@ namespace Jovian\Toolkits\GTK\Primitives;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKButtonImage;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Jovian\Toolkits\GTK\GTKWindow;
 use Surface\Contracts\Framebuffers\Framebuffer;
-use Surface\Contracts\Windows\Mail\View\Toggled;
-use Surface\Contracts\Windows\Primitives\ImagePosition;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKToggleButton;
+use Surface\Contracts\Toolkits\Mail\Views\Toggled;
+use Surface\Contracts\Toolkits\Primitives\ImagePosition;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKToggleButton;
 
 /**
  * A toggle button over GtkToggleButton: toggled posts Toggled with the new state.
@@ -29,7 +29,7 @@ class GTKToggleButton extends TKToggleButton implements GTKView
      * @param Placement $placement
      * @param string $label
      * @param bool $pressed
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, string $label, bool $pressed)
     {

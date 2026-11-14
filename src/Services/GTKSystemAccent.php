@@ -4,8 +4,8 @@ namespace Jovian\Toolkits\GTK\Services;
 
 use GSettings;
 use GSettingsSchemaSource;
-use Surface\Contracts\Windows\Services\SystemAccent;
-use Surface\Contracts\Windows\WindowException;
+use Surface\Contracts\Toolkits\Services\SystemAccent;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
 use Surface\NutsAndBolts\Color;
 
 /**
@@ -24,7 +24,7 @@ final class GTKSystemAccent implements SystemAccent
         'red' => '#e62d42', 'pink' => '#d56199', 'purple' => '#9141ac', 'slate' => '#6f8396',
     ];
 
-    /** @throws WindowException When the key holds a name GNOME does not give an accent. */
+    /** @throws ToolkitRuntimeException When the key holds a name GNOME does not give an accent. */
     public function color(): ?Color
     {
         $schema = GSettingsSchemaSource::getDefault()?->lookup(self::SCHEMA, true);
@@ -33,7 +33,7 @@ final class GTKSystemAccent implements SystemAccent
         }
         $name = GSettings::new(self::SCHEMA)->getString(self::KEY);
         $hex = self::ACCENTS[strtolower((string) $name)]
-            ?? throw new WindowException(sprintf("%s %s is '%s'; GNOME names %s.", self::SCHEMA, self::KEY, $name, implode(', ', array_keys(self::ACCENTS))));
+            ?? throw new ToolkitRuntimeException(sprintf("%s %s is '%s'; GNOME names %s.", self::SCHEMA, self::KEY, $name, implode(', ', array_keys(self::ACCENTS))));
 
         return Color::hex($hex);
     }

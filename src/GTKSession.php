@@ -1,30 +1,23 @@
 <?php
 
-namespace Jovian\Toolkits\GTK\Bridge;
+namespace Jovian\Toolkits\GTK;
 
-use GApplicationFlags;
 use GIOCondition;
 use GMainContext;
 use GtkAboutDialog;
-use GtkApplication;
 use GtkWindow;
-use Jovian\Toolkits\GTK\Windows\GTKCanvasCoast;
-use Jovian\Toolkits\GTK\Windows\GTKWindow as DriverWindow;
+use Jovian\Toolkits\GTK\GTKWindow as DriverWindow;
 use NSApplication;
-use Surface\Bridge\BridgedToolkitSession;
-use Surface\Contracts\Bridge\BridgeException;
-use Surface\Contracts\Windows\Mail\View\ViewResized;
-use Surface\Contracts\Windows\Mail\WindowResized;
-use Surface\Contracts\Windows\Primitives\TKPrimitive;
+use Surface\Contracts\Toolkits\Mail\Views\ViewResized;
+use Surface\Contracts\Toolkits\Mail\Windows\WindowResized;
+use Surface\Contracts\Toolkits\Primitives\TKPrimitive;
+use GtkApplication;
+use GApplicationFlags;
+use Surface\Toolkits\ToolkitSession;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
 
-class GTKSession extends BridgedToolkitSession
+class GTKSession extends ToolkitSession
 {
-    /**
-     * Non-blocking iterations one pump runs after its wait. A source that is always ready
-     * (an idle handler re-adding itself) waits for the next pump instead of holding this one.
-     */
-    public const int DRAIN_LIMIT = 64;
-
     /**
      * The application, from initialization until the process ends.
      * @var GtkApplication|null
@@ -32,6 +25,12 @@ class GTKSession extends BridgedToolkitSession
     protected ?GtkApplication $application = null;
 
     protected ?GMainContext $context = null;
+
+    /**
+     * Non-blocking iterations one pump runs after its wait. A source that is always ready
+     * (an idle handler re-adding itself) waits for the next pump instead of holding this one.
+     */
+    public const int DRAIN_LIMIT = 64;
 
     /**
      * The loop's waiter descriptor while joined, and its source while armed.
@@ -43,27 +42,20 @@ class GTKSession extends BridgedToolkitSession
     /**
      * The About dialog while it is open. Closing destroys it: a hidden toplevel keeps the
      * frame clock waking the process every frame on macOS.
-     * @var GtkAboutDialog|null
      */
     protected ?GtkAboutDialog $about_dialog = null;
 
     /**
-     * Primitives reporting their size, by uuid, with the size last reported. GTK has no
-     * per-widget resize signal, so each pump compares allocations after it dispatches.
+     * Primitives reporting their size, by uuid, with the size last reported.
      * @var array<string, array{TKPrimitive, array{int, int}}>
      */
     protected array $watched = [];
 
     /**
-     * Open windows by name, with the content-area size last reported. Polled like watched
-     * primitives, so every change of the area counts: the window's own resize, and an
-     * in-window menu bar arriving or going.
+     * Open windows by name, with the content-area size last reported.
      * @var array<string, array{DriverWindow, array{int, int}}>
      */
     protected array $windows = [];
-
-    /** @var array<int, GTKCanvasCoast> coasts ticked at each pump */
-    protected array $coasts = [];
 
     /**
      * @param string $application_id the desktop identity: Wayland's app_id, the bus name when unique
@@ -76,32 +68,23 @@ class GTKSession extends BridgedToolkitSession
         parent::__construct();
     }
 
-    /**
-     * Create and register the application; GTK initialises in its startup signal.
-     * @return void
-     */
     protected function initializeEngine(): void
     {
-        if (PHP_OS_FAMILY === 'Darwin' && ! extension_loaded('appkit')) {
-            throw new BridgeException('GTK on macOS needs ext-appkit: GTK runs on NSApplication there, and bringing the app forward is an AppKit call.');
+        if (device_os_family() === 'mac' && ! extension_loaded('appkit')) {
+            throw new ToolkitRuntimeException('GTK on macOS required ext-appkit.');
         }
 
-        // GTK names the X11 WM_CLASS after the program name; the desktop file's StartupWMClass is the app id.
         g_set_prgname($this->application_id);
         $this->application = GtkApplication::new(
             $this->application_id,
             $this->unique ? GApplicationFlags::DEFAULT_FLAGS : GApplicationFlags::NON_UNIQUE,
-        ) ?? throw new BridgeException("GTK made no application for the id '{$this->application_id}': GLib takes only a valid application id (reverse-DNS, see g_application_id_is_valid).");
-        // activate() warns when nothing listens; the application has nothing to do on it.
+        ) ?? throw new ToolkitRuntimeException("GTK made no application for the id '{$this->application_id}': GLib takes only a valid application id (reverse-DNS, see g_application_id_is_valid).");
+
         g_signal_connect($this->application, 'activate', fn () => null);
         $this->application->register(null);
         $this->context = GMainContext::default();
     }
 
-    /**
-     * Hold the application alive with no windows and activate it on its identity.
-     * @return void
-     */
     protected function connectToEngine(): void
     {
         $this->application->hold();
@@ -110,7 +93,6 @@ class GTKSession extends BridgedToolkitSession
 
     /**
      * Release the hold taken in connectToEngine().
-     * @return void
      */
     protected function disconnectEngine(): void
     {
@@ -151,48 +133,22 @@ class GTKSession extends BridgedToolkitSession
         }
 
         $this->checkWatched();
-        $this->tickCoasts();
         foreach ($this->windows as [$window]) {
             $window->settleActive();
         }
 
+        // Not ported yet: the canvas coasts ticked here (GTKCanvasCoast is in deprecated/Windows).
+
         return $dispatched;
     }
 
-    /**
-     * Report $primitive's allocation from now on, whenever a pump finds it changed.
-     *
-     * @param TKPrimitive $primitive
-     * @return void
-     */
-    /** Tick $coast at every pump until it is done: the pump is its clock. */
-    public function coast(GTKCanvasCoast $coast): void
-    {
-        $this->coasts[spl_object_id($coast)] = $coast;
-    }
-
-    private function tickCoasts(): void
-    {
-        $now = GTKCanvasCoast::nowMs();
-        foreach ($this->coasts as $id => $coast) {
-            $coast->tick($now);
-            if ($coast->done()) {
-                unset($this->coasts[$id]);
-            }
-        }
-    }
-
+    /** Report $primitive's allocation from now on, whenever a pump finds it changed. */
     public function watch(TKPrimitive $primitive): void
     {
         $this->watched[$primitive->uuid()] = [$primitive, $primitive->size()];
     }
 
-    /**
-     * Stop reporting $primitive's size and drop a report still pending for it.
-     *
-     * @param TKPrimitive $primitive
-     * @return void
-     */
+    /** Stop reporting $primitive's size and drop a report still pending for it. */
     public function unwatch(TKPrimitive $primitive): void
     {
         unset($this->watched[$primitive->uuid()]);
@@ -202,21 +158,13 @@ class GTKSession extends BridgedToolkitSession
     /**
      * Report $window's content-area size from now on. A size with a zero side (not yet
      * allocated) is recorded without a report, so the first allocation is not a resize.
-     *
-     * @param DriverWindow $window
-     * @return void
      */
     public function watchWindow(DriverWindow $window): void
     {
         $this->windows[$window->name()] = [$window, [0, 0]];
     }
 
-    /**
-     * Stop reporting $window's size and drop a report still pending for it.
-     *
-     * @param DriverWindow $window
-     * @return void
-     */
+    /** Stop reporting $window's size and drop a report still pending for it. */
     public function unwatchWindow(DriverWindow $window): void
     {
         unset($this->windows[$window->name()]);
@@ -225,8 +173,7 @@ class GTKSession extends BridgedToolkitSession
 
     /**
      * Post WindowResized and ViewResized, latest-only, for each window and watched primitive
-     * whose allocation changed.
-     * @return void
+     * whose allocation changed. GTK has no per-widget resize signal, so each pump compares.
      */
     protected function checkWatched(): void
     {
@@ -254,30 +201,18 @@ class GTKSession extends BridgedToolkitSession
         }
     }
 
-    /**
-     * Keyed by uuid: "<window>.<path>" would collide across windows whose names hold dots.
-     *
-     * @param TKPrimitive $primitive
-     * @return string
-     */
+    /** Keyed by uuid: "<window>.<path>" would collide across windows whose names hold dots. */
     protected static function viewResizedKey(TKPrimitive $primitive): string
     {
         return "view.resized.{$primitive->uuid()}";
     }
 
-    /**
-     * @param int $fd
-     * @return void
-     */
     protected function wakeDescriptor(int $fd): void
     {
         $this->wake_fd = $fd;
         $this->armWake();
     }
 
-    /**
-     * @return void
-     */
     protected function releaseWakeDescriptor(): void
     {
         if (! is_null($this->wake_tag)) {
@@ -290,7 +225,6 @@ class GTKSession extends BridgedToolkitSession
     /**
      * The descriptor's source is one-shot: it ends a wait and removes itself, and the next
      * pump re-arms it, so a descriptor the loop has not read yet cannot keep a drain busy.
-     * @return void
      */
     protected function armWake(): void
     {
@@ -309,18 +243,16 @@ class GTKSession extends BridgedToolkitSession
      * Bring the process forward so a presented window takes focus. macOS declines GDK's one
      * activation at display open for a process started from a terminal, and GDK has no other,
      * so it is asked of NSApplication. Wayland and X11 give focus on present.
-     * @return void
      */
     public function bringForward(): void
     {
-        if (PHP_OS_FAMILY === 'Darwin') {
+        if (device_os_family() === 'mac') {
             NSApplication::sharedApplication()->activateIgnoringOtherApps(true);
         }
     }
 
     /**
      * The application, for window hosts.
-     * @return GtkApplication
      */
     public function application(): GtkApplication
     {
@@ -332,8 +264,6 @@ class GTKSession extends BridgedToolkitSession
      * is one. While it is open, showing it again updates and raises the same dialog, as macOS does.
      *
      * @param array{name?: string|null, version?: string|null, copyright?: string|null} $about
-     * @param GtkWindow|null $parent
-     * @return GtkAboutDialog
      */
     public function showAbout(array $about, ?GtkWindow $parent): GtkAboutDialog
     {
@@ -357,10 +287,7 @@ class GTKSession extends BridgedToolkitSession
         return $dialog;
     }
 
-    /**
-     * The About dialog while it is open.
-     * @return GtkAboutDialog|null
-     */
+    /** The About dialog while it is open. */
     public function aboutDialog(): ?GtkAboutDialog
     {
         return $this->about_dialog;

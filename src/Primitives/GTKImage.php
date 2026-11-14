@@ -4,16 +4,16 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Primitives\ImageScaling;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKImage;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Primitives\ImageScaling;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKImage;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * An image over GtkPicture. A file is checked before anything changes: it must exist, be
- * readable, and give GTK something to show, or WindowException and the image keeps what it
+ * readable, and give GTK something to show, or ToolkitRuntimeException and the image keeps what it
  * showed. What GTK makes of a file is GTK's: 4.18 loads nothing from a file that is not an
  * image, while 4.24 shows any file it does not recognise as an SVG document; a corrupt image
  * of a format it knows loads nothing on both. Scaling:
@@ -30,7 +30,7 @@ class GTKImage extends TKImage implements GTKView
      * @param TKPrimitiveGroup|null $parent
      * @param Placement $placement
      * @param string|null $file
-     * @throws WindowException When the name is not valid, or the file is missing or not an image GTK loads.
+     * @throws ToolkitRuntimeException When the name is not valid, or the file is missing or not an image GTK loads.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, ?string $file)
     {
@@ -45,7 +45,7 @@ class GTKImage extends TKImage implements GTKView
     /**
      * @param string|null $file
      * @return $this
-     * @throws WindowException When the file is missing or not an image GTK loads; nothing changes.
+     * @throws ToolkitRuntimeException When the file is missing or not an image GTK loads; nothing changes.
      */
     public function setFile(?string $file): static
     {
@@ -81,15 +81,15 @@ class GTKImage extends TKImage implements GTKView
     /**
      * @param string $file
      * @return void
-     * @throws WindowException
+     * @throws ToolkitRuntimeException
      */
     protected static function guardFile(string $file): void
     {
         if (! is_file($file) || ! is_readable($file)) {
-            throw new WindowException("Image file '{$file}' does not exist or is not readable.");
+            throw new ToolkitRuntimeException("Image file '{$file}' does not exist or is not readable.");
         }
         if (is_null(\GtkPicture::newForFilename($file)->getPaintable())) {
-            throw new WindowException("Image file '{$file}' gives GTK nothing to show.");
+            throw new ToolkitRuntimeException("Image file '{$file}' gives GTK nothing to show.");
         }
     }
 }

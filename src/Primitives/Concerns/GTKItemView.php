@@ -2,10 +2,10 @@
 
 namespace Jovian\Toolkits\GTK\Primitives\Concerns;
 
-use Surface\Contracts\Windows\Mail\View\ItemActionClicked;
-use Surface\Contracts\Windows\Mail\View\ItemActivated;
-use Surface\Contracts\Windows\Mail\View\ViewScrolled;
-use Surface\Contracts\Windows\Styling\ScrollPosition;
+use Surface\Contracts\Toolkits\Mail\Views\ItemActionClicked;
+use Surface\Contracts\Toolkits\Mail\Views\ItemActivated;
+use Surface\Contracts\Toolkits\Mail\Views\ViewScrolled;
+use Surface\Contracts\Toolkits\Styling\ScrollPosition;
 
 /**
  * An item view's model and scrolling: a GtkStringList of one empty string per item (rows bind

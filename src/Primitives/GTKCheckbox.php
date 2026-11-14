@@ -4,12 +4,12 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\Toggled;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKCheckbox;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\Toggled;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKCheckbox;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A checkbox over GtkCheckButton: toggled posts Toggled with the new state.
@@ -25,7 +25,7 @@ class GTKCheckbox extends TKCheckbox implements GTKView
      * @param Placement $placement
      * @param string $label
      * @param bool $checked
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, string $label, bool $checked)
     {

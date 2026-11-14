@@ -5,12 +5,12 @@ namespace Jovian\Toolkits\GTK\Primitives;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKContainer;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\Primitives\TKPrimitive;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKFixed;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\Primitives\TKPrimitive;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKFixed;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A fixed over \GtkFixed: each child put at its frame's origin, its frame size written as the
@@ -33,7 +33,7 @@ class GTKFixed extends TKFixed implements GTKContainer
      * @param GTKWindow $window
      * @param TKPrimitiveGroup|null $parent
      * @param Placement $placement
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement)
     {
@@ -45,7 +45,7 @@ class GTKFixed extends TKFixed implements GTKContainer
     public function holderOf(TKPrimitive $child): \GtkScrolledWindow
     {
         return $this->holders[$child->uuid()]
-            ?? throw new WindowException("'{$child->path()}' is not in fixed '{$this->path()}'.");
+            ?? throw new ToolkitRuntimeException("'{$child->path()}' is not in fixed '{$this->path()}'.");
     }
 
     public function removeNative(TKPrimitive $child): void

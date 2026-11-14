@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
+use deprecated\Bridge\GTKBridgeDriver;
 use Surface\Contracts\Windows\Mail\View\ViewResized;
 use Surface\Contracts\Windows\Mail\WindowResized;
 

@@ -5,12 +5,12 @@ namespace Jovian\Toolkits\GTK\Primitives;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKTextStyle;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\Styling\TextAlignment;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKLink;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\Styling\TextAlignment;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKLink;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A link over GtkLinkButton: GTK opens the URL when it is clicked (the button's own
@@ -29,7 +29,7 @@ class GTKLink extends TKLink implements GTKView
      * @param Placement $placement
      * @param string $text
      * @param string $url
-     * @throws WindowException When the name or URL is not valid.
+     * @throws ToolkitRuntimeException When the name or URL is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, string $text, string $url)
     {

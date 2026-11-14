@@ -2,15 +2,15 @@
 
 namespace Jovian\Toolkits\GTK\Primitives;
 
-use GObject;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
+use GObject;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKItemView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Primitives\ListRow;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Windows\Primitives\TKListView;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Primitives\ListRow;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Toolkits\Primitives\TKListView;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A GtkListView in a GtkScrolledWindow (the primitive's widget); a double click, Enter or Return

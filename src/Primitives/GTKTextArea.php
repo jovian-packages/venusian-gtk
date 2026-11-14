@@ -8,18 +8,18 @@ use Jovian\Toolkits\GTK\Primitives\Concerns\GTKFonts;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKTextStyle;
 use Jovian\Toolkits\GTK\Windows\GTKMacTextKeys;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\TextChanged;
-use Surface\Contracts\Windows\Mail\View\ViewScrolled;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\Styling\FontSpec;
-use Surface\Contracts\Windows\Styling\TextAlignment;
-use Surface\Contracts\Windows\Styling\ScrollPosition;
-use Surface\Contracts\Windows\Styling\TextRangeStyle;
-use Surface\Contracts\Windows\WindowException;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\TextChanged;
+use Surface\Contracts\Toolkits\Mail\Views\ViewScrolled;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\Styling\FontSpec;
+use Surface\Contracts\Toolkits\Styling\ScrollPosition;
+use Surface\Contracts\Toolkits\Styling\TextAlignment;
+use Surface\Contracts\Toolkits\Styling\TextRangeStyle;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
 use Surface\NutsAndBolts\Color;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKTextArea;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKTextArea;
 
 /**
  * A multi-line editor: a GtkTextView inside a GtkScrolledWindow, which is the primitive's
@@ -126,7 +126,7 @@ class GTKTextArea extends TKTextArea implements GTKView
      * @param TKPrimitiveGroup|null $parent
      * @param Placement $placement
      * @param string $value
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, string $value)
     {

@@ -3,7 +3,7 @@
 namespace Jovian\Toolkits\GTK\Primitives\Concerns;
 
 use GtkBox;
-use Surface\Contracts\Windows\Primitives\TKPrimitive;
+use Surface\Contracts\Toolkits\Primitives\TKPrimitive;
 
 /**
  * Column and row over GtkBox: children appended in creation order, reordered after their

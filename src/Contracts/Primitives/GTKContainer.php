@@ -2,7 +2,7 @@
 
 namespace Jovian\Toolkits\GTK\Contracts\Primitives;
 
-use Surface\Contracts\Windows\Primitives\TKPrimitive;
+use Surface\Contracts\Toolkits\Primitives\TKPrimitive;
 
 /**
  * A GTK container primitive: takes a removed child's widget out of its own.

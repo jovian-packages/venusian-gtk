@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Windows\GTKRightClicks;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Windows\GTKRightClicks;
+use Windows\GTKWindow;
 use Surface\Contracts\Windows\Mail\MenuActivated;
 use Surface\Contracts\Windows\Mail\View\RightClicked;
 use Surface\Contracts\Windows\Mail\WindowRightClicked;

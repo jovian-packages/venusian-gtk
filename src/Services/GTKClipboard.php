@@ -2,15 +2,15 @@
 
 namespace Jovian\Toolkits\GTK\Services;
 
+use GError;
+use GdkDisplay;
 use GAsyncResult;
 use GdkClipboard;
-use GdkDisplay;
-use GError;
-use Jovian\Toolkits\GTK\Bridge\GTKSession;
-use Surface\Contracts\Windows\Mail\Services\ClipboardChanged;
-use Surface\Windows\Services\ToolkitClipboard;
-use Voyager\Contracts\Signals\NamedSignal;
 use WeakReference;
+use Jovian\Toolkits\GTK\GTKSession;
+use Voyager\Contracts\Signals\NamedSignal;
+use Surface\Toolkits\Services\ToolkitClipboard;
+use Surface\Contracts\Toolkits\Mail\Services\ClipboardChanged;
 
 /**
  * The display's clipboard. A read is async: requestText() answers in readTextAsync's callback,
@@ -21,8 +21,9 @@ final class GTKClipboard extends ToolkitClipboard
 {
     private readonly GdkClipboard $clipboard;
 
-    public function __construct(private readonly GTKSession $session)
-    {
+    public function __construct(
+        private readonly GTKSession $session
+    ) {
         $this->clipboard = GdkDisplay::getDefault()->getClipboard();
         $weak = WeakReference::create($this);
         g_signal_connect($this->clipboard, 'changed', static fn () => $weak->get()?->changed());

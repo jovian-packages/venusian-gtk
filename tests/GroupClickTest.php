@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Windows\GTKWindow;
 use Surface\Contracts\Windows\Mail\View\GroupClicked;
 use Surface\Contracts\Windows\Primitives\TKPrimitive;
 

@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Windows\GTKCanvasClicks;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Windows\GTKCanvasClicks;
+use Windows\GTKWindow;
 use Surface\Contracts\Windows\Mail\View\CanvasClicked;
 use Surface\Contracts\Windows\Primitives\TKPrimitive;
 

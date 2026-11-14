@@ -4,12 +4,12 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKContainer;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\Primitives\TKPrimitive;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKGrid;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\Primitives\TKPrimitive;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKGrid;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A grid over \GtkGrid: each child attached at its cell and spans; spacing on both axes,
@@ -26,7 +26,7 @@ class GTKGrid extends TKGrid implements GTKContainer
      * @param Placement $placement
      * @param int $spacing
      * @param int $padding
-     * @throws WindowException When the name is not valid, or spacing or padding is negative.
+     * @throws ToolkitRuntimeException When the name is not valid, or spacing or padding is negative.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, int $spacing, int $padding)
     {

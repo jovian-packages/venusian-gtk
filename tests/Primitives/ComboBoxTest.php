@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Jovian\Toolkits\GTK\Primitives\GTKComboBox;
-use Jovian\Toolkits\GTK\Windows\GTKMacTextKeys;
+use Windows\GTKMacTextKeys;
 use Surface\Contracts\Windows\Mail\View\FocusLost;
 use Surface\Contracts\Windows\Mail\View\SelectionChanged;
 use Surface\Contracts\Windows\Mail\View\TextChanged;

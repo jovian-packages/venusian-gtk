@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Windows\GTKMenuBar;
+use Windows\GTKMenuBar;
 use Surface\Contracts\Windows\Menus\MenuRole;
 
 beforeEach(function (): void {

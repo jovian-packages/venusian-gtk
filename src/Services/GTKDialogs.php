@@ -2,6 +2,8 @@
 
 namespace Jovian\Toolkits\GTK\Services;
 
+use Jovian\Toolkits\GTK\GTKBridge;
+use Jovian\Toolkits\GTK\GTKSession;
 use GAsyncResult;
 use GCancellable;
 use GError;
@@ -11,15 +13,13 @@ use GListStore;
 use GtkAlertDialog;
 use GtkFileDialog;
 use GtkFileFilter;
-use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
-use Jovian\Toolkits\GTK\Bridge\GTKSession;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Services\Alert;
-use Surface\Contracts\Windows\Services\DialogCapability;
-use Surface\Contracts\Windows\Services\OpenRequest;
-use Surface\Contracts\Windows\Services\SaveRequest;
-use Surface\Contracts\Windows\ToolkitWindow;
-use Surface\Windows\Services\ToolkitDialogs;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Services\Alert;
+use Surface\Contracts\Toolkits\Services\DialogCapability;
+use Surface\Contracts\Toolkits\Services\OpenRequest;
+use Surface\Contracts\Toolkits\Services\SaveRequest;
+use Surface\Contracts\Toolkits\ToolkitWindow;
+use Surface\Toolkits\Services\ToolkitDialogs;
 use Voyager\Contracts\Signals\NamedSignal;
 use WeakReference;
 
@@ -36,7 +36,7 @@ final class GTKDialogs extends ToolkitDialogs
      */
     private array $open = [];
 
-    public function __construct(GTKBridgeDriver $driver, private readonly GTKSession $session)
+    public function __construct(GTKBridge $driver, private readonly GTKSession $session)
     {
         parent::__construct($driver);
     }

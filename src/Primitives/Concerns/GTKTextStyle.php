@@ -2,7 +2,7 @@
 
 namespace Jovian\Toolkits\GTK\Primitives\Concerns;
 
-use Surface\Contracts\Windows\Styling\FontSpec;
+use Surface\Contracts\Toolkits\Styling\FontSpec;
 use Surface\NutsAndBolts\Color;
 
 /**

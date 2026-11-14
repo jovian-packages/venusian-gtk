@@ -4,12 +4,12 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\ScrollChanged;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKScrollBar;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\ScrollChanged;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKScrollBar;
 
 /**
  * A GtkScrollbar over a GtkAdjustment: lower 0, upper max(maximum, page), page size and page
@@ -34,7 +34,7 @@ class GTKScrollBar extends TKScrollBar implements GTKView
     private float $wheel_rest = 0.0;
 
     /**
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, bool $vertical)
     {

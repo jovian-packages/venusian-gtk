@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
+use deprecated\Bridge\GTKBridgeDriver;
 use Jovian\Toolkits\GTK\Input\GTKInputEngine;
 use Jovian\Toolkits\GTK\Input\SeenEvent;
 use Jovian\Toolkits\GTK\Input\SeenKind;

@@ -5,12 +5,12 @@ namespace Jovian\Toolkits\GTK\Primitives;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKTextStyle;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\Styling\TextAlignment;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKLabel;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\Styling\TextAlignment;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKLabel;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A label over GtkLabel. Alignment sets both where the text sits in the label (xalign) and how
@@ -27,7 +27,7 @@ class GTKLabel extends TKLabel implements GTKView
      * @param TKPrimitiveGroup|null $parent
      * @param Placement $placement
      * @param string $text
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, string $text)
     {

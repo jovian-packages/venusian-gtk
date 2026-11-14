@@ -4,11 +4,11 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\SelectionChanged;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKSegmentedControl;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\SelectionChanged;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKSegmentedControl;
 
 /**
  * A horizontal GtkBox with GTK's "linked" style holding one GtkToggleButton per segment, all in

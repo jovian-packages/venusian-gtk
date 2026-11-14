@@ -4,12 +4,12 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\SelectionChanged;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKDropdown;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\SelectionChanged;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKDropdown;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A drop-down over GtkDropDown on a GtkStringList of the options. notify::selected posts
@@ -26,7 +26,7 @@ class GTKDropdown extends TKDropdown implements GTKView
      * @param Placement $placement
      * @param list<string> $options
      * @param int $selected
-     * @throws WindowException When the name is not valid, the options are not a list of strings, or the index is out of range.
+     * @throws ToolkitRuntimeException When the name is not valid, the options are not a list of strings, or the index is out of range.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, array $options, int $selected)
     {

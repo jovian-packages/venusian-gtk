@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Windows\GTKMacTextKeys;
+use Windows\GTKMacTextKeys;
 
 beforeEach(function (): void {
     driver()->closeAll();

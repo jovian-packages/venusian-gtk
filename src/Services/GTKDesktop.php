@@ -6,8 +6,8 @@ use GFile;
 use GtkFileLauncher;
 use GtkUriLauncher;
 use InvalidArgumentException;
-use Surface\Contracts\Windows\Services\Desktop;
-use Surface\Windows\Services\WebAddress;
+use Surface\Contracts\Toolkits\Services\Desktop;
+use Surface\Toolkits\Services\WebAddress;
 
 final class GTKDesktop implements Desktop
 {

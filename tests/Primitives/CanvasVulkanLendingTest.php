@@ -67,7 +67,7 @@ afterEach(function (): void {
     viewMail(session());
 });
 
-/** @return array{\Jovian\Toolkits\GTK\Windows\GTKWindow, \Jovian\Toolkits\GTK\Primitives\GTKCanvas} a shown window with a filling canvas */
+/** @return array{\Windows\GTKWindow, \Jovian\Toolkits\GTK\Primitives\GTKCanvas} a shown window with a filling canvas */
 function vulkanCanvas(int $width = 300, int $height = 200): array
 {
     $window = driver()->open('main', $width, $height);

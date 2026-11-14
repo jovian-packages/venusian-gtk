@@ -6,14 +6,14 @@ use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKTextStyle;
 use Jovian\Toolkits\GTK\Windows\GTKMacTextKeys;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\TextChanged;
-use Surface\Contracts\Windows\Mail\View\TextSubmitted;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\Styling\TextAlignment;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKTextInput;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\TextChanged;
+use Surface\Contracts\Toolkits\Mail\Views\TextSubmitted;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\Styling\TextAlignment;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKTextInput;
 
 /**
  * A single-line input over GtkEntry. The entry's changed posts TextChanged when the text differs
@@ -36,7 +36,7 @@ class GTKTextInput extends TKTextInput implements GTKView
      * @param string $value
      * @param string|null $placeholder
      * @param bool $secret
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, string $value, ?string $placeholder, bool $secret)
     {

@@ -3,25 +3,25 @@
 namespace Jovian\Toolkits\GTK\Primitives\Concerns;
 
 use Closure;
+use Jovian\Toolkits\GTK\GTKSession;
+use Jovian\Toolkits\GTK\Contracts\Primitives\GTKContainer;
+use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use GdkDisplay;
 use GObject;
 use GtkAlign;
 use GtkCssProvider;
 use GtkWidget;
-use Jovian\Toolkits\GTK\Bridge\GTKSession;
-use Jovian\Toolkits\GTK\Contracts\Primitives\GTKContainer;
-use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\GTKFixed;
 use Jovian\Toolkits\GTK\Windows\GTKContextMenu;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Menus\ContextMenu as ContextMenuContract;
-use Surface\Contracts\Windows\Primitives\Align;
-use Surface\Contracts\Windows\Primitives\TKPrimitive;
-use Surface\Contracts\Windows\Primitives\TKTransition;
-use Surface\Contracts\Windows\Styling\FontSpec;
-use Surface\Contracts\Windows\WindowException;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Menus\ContextMenu as ContextMenuContract;
+use Surface\Contracts\Toolkits\Primitives\Align;
+use Surface\Contracts\Toolkits\Primitives\TKPrimitive;
+use Surface\Contracts\Toolkits\Primitives\TKTransition;
+use Surface\Contracts\Toolkits\Styling\FontSpec;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
 use Surface\NutsAndBolts\Color;
-use Surface\Windows\Menus\ContextMenu;
+use Surface\Toolkits\Menus\ContextMenu;
 
 /**
  * The hooks every GTK primitive shares. The concrete builds its widget after the abstract's
@@ -72,7 +72,7 @@ trait GTKPrimitive
     protected function applyFocus(): bool
     {
         $taken = false;
-        $this->host()->focusTracker()->quietly(function () use (&$taken): void {
+        $this->host()->quietly(function () use (&$taken): void {
             $taken = $this->focusWidget()->grabFocus();
         });
 
@@ -81,7 +81,7 @@ trait GTKPrimitive
 
     protected function nativeHasFocus(): bool
     {
-        return $this->host()->focusTracker()->holder() === $this;
+        return $this->host()->focused() === $this;
     }
 
     /** The menu popupMenu() opened, while it shows; null otherwise. */
@@ -148,13 +148,13 @@ trait GTKPrimitive
 
     /**
      * @return GTKWindow
-     * @throws WindowException When the primitive was minted for another driver's window.
+     * @throws ToolkitRuntimeException When the primitive was minted for another driver's window.
      */
     protected function host(): GTKWindow
     {
         return $this->window instanceof GTKWindow
             ? $this->window
-            : throw new WindowException("'{$this->path()}' belongs to a ".get_debug_type($this->window).', not a GTK window.');
+            : throw new ToolkitRuntimeException("'{$this->path()}' belongs to a ".get_debug_type($this->window).', not a GTK window.');
     }
 
     protected function session(): GTKSession
@@ -227,7 +227,7 @@ trait GTKPrimitive
     protected function movingFocusOff(Closure $change): void
     {
         $focus = $this->host()->focusTracker();
-        if (! $focus->within($this)) {
+        if (is_null($focus) || ! $focus->within($this)) {
             $change();
 
             return;
@@ -250,7 +250,7 @@ trait GTKPrimitive
      */
     protected function applyEnabled(bool $enabled): void
     {
-        $this->host()->focusTracker()->quietly(function () use ($enabled): void {
+        $this->host()->quietly(function () use ($enabled): void {
             $this->native->setSensitive($enabled);
         });
     }
@@ -529,13 +529,13 @@ trait GTKPrimitive
     /**
      * @param TKPrimitive $child
      * @return GtkWidget
-     * @throws WindowException When $child is not a GTK primitive.
+     * @throws ToolkitRuntimeException When $child is not a GTK primitive.
      */
     protected static function nativeOf(TKPrimitive $child): GtkWidget
     {
         return $child instanceof GTKView
             ? $child->native()
-            : throw new WindowException("'{$child->path()}' is a ".get_debug_type($child).', not a GTK primitive.');
+            : throw new ToolkitRuntimeException("'{$child->path()}' is a ".get_debug_type($child).', not a GTK primitive.');
     }
 
     protected static function gtkAlign(Align $align): GtkAlign

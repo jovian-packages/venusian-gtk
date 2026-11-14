@@ -2,16 +2,16 @@
 
 namespace Jovian\Toolkits\GTK\Primitives;
 
-use GObject;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
+use GObject;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\RowSelected;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\Primitives\TableColumn;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKTable;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\RowSelected;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\Primitives\TableColumn;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKTable;
 
 /**
  * A table: a GtkColumnView inside a GtkScrolledWindow (the primitive's widget), over a
@@ -44,7 +44,7 @@ class GTKTable extends TKTable implements GTKView
      * @param Placement $placement
      * @param list<TableColumn> $columns
      * @param list<array<string, scalar|null>> $rows
-     * @throws WindowException When the name, columns or cells are not valid.
+     * @throws ToolkitRuntimeException When the name, columns or cells are not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, array $columns, array $rows)
     {

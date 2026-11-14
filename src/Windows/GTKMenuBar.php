@@ -2,6 +2,8 @@
 
 namespace Jovian\Toolkits\GTK\Windows;
 
+use Jovian\Toolkits\GTK\GTKBridge;
+use Jovian\Toolkits\GTK\GTKSession;
 use GMenu;
 use GMenuItem;
 use GSimpleAction;
@@ -10,23 +12,20 @@ use GtkApplication;
 use GtkPopoverMenuBar;
 use GtkWindow;
 use GVariant;
-use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
-use Jovian\Toolkits\GTK\Bridge\GTKSession;
-use Surface\Contracts\Windows\Mail\MenuActivated;
-use Surface\Contracts\Windows\Mail\MenuRadioChosen;
-use Surface\Contracts\Windows\Mail\MenuToggled;
-use Surface\Contracts\Windows\Mail\QuitRequested;
-use Surface\Contracts\Windows\Menus\MenuRole;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Menus\Accelerator;
-use Surface\Windows\Menus\MenuItem;
-use Surface\Windows\Menus\MenuProfile;
-use Surface\Windows\Menus\MenuStates;
+use Surface\Contracts\Toolkits\Mail\Menus\MenuActivated;
+use Surface\Contracts\Toolkits\Mail\Menus\MenuRadioChosen;
+use Surface\Contracts\Toolkits\Mail\Menus\MenuToggled;
+use Surface\Contracts\Toolkits\Mail\QuitRequested;
+use Surface\Contracts\Toolkits\Menus\MenuRole;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Menus\Accelerator;
+use Surface\Toolkits\Menus\MenuItem;
+use Surface\Toolkits\Menus\MenuProfile;
+use Surface\Toolkits\Menus\MenuStates;
 
 /**
  * A menu profile built once into a GMenu model and the actions its items name: "win"
- * actions for a window's bar, "app" actions for the app's default bar (macOS), which
- * works with no window. Separators become section boundaries, which is how GTK draws
+ * actions for a window's bar, "app" actions on macOS, where the shown bar's actions are held by the application. Separators become section boundaries, which is how GTK draws
  * them; toggles are stateful boolean actions. Every item posts mail but the edit roles,
  * which run the focused widget's own action; About shows a non-modal dialog.
  */
@@ -122,7 +121,7 @@ class GTKMenuBar
         protected readonly ?GtkWindow $parent,
         ?MenuStates $states = null,
     ) {
-        $this->scope = is_null($window) || GTKBridgeDriver::appWideBar() ? 'app' : 'win';
+        $this->scope = is_null($window) || GTKBridge::appWideBar() ? 'app' : 'win';
         $this->model = GMenu::new();
         $this->actions = GSimpleActionGroup::new();
         $this->states = $states ?? new MenuStates($profile);
@@ -208,7 +207,7 @@ class GTKMenuBar
 
     /**
      * Set the state of a node; the node and the nodes below it show their effective state. Posts nothing.
-     * @throws WindowException
+     * @throws ToolkitRuntimeException
      */
     public function setItemEnabled(string $item, bool $enabled): void
     {
@@ -218,7 +217,7 @@ class GTKMenuBar
         }
     }
 
-    /** @throws WindowException */
+    /** @throws ToolkitRuntimeException */
     public function isItemEnabled(string $item): bool
     {
         return $this->states->isEnabled($item);
@@ -270,11 +269,11 @@ class GTKMenuBar
      * One item's action, by its profile id.
      * @param string $id
      * @return GSimpleAction
-     * @throws WindowException
+     * @throws ToolkitRuntimeException
      */
     public function action(string $id): GSimpleAction
     {
-        return $this->actions->lookupAction($id) ?? throw new WindowException("No item '{$id}' in menu profile '{$this->profile->name}'.");
+        return $this->actions->lookupAction($id) ?? throw new ToolkitRuntimeException("No item '{$id}' in menu profile '{$this->profile->name}'.");
     }
 
     public function setToggle(string $item, bool $on): void
@@ -291,14 +290,14 @@ class GTKMenuBar
         return $this->states->toggle($item);
     }
 
-    /** @throws WindowException When no radio group has the name, or the item is not in it. */
+    /** @throws ToolkitRuntimeException When no radio group has the name, or the item is not in it. */
     public function setRadio(string $group, string $item): void
     {
         $this->states->setRadio($group, $item);
         $this->showRadio($group);
     }
 
-    /** @throws WindowException When no radio group has the name. */
+    /** @throws ToolkitRuntimeException When no radio group has the name. */
     public function radio(string $group): string
     {
         return $this->states->radio($group);
@@ -309,7 +308,7 @@ class GTKMenuBar
      * the new label and the same action, target and submenu. A top-level folder's sensitivity in the
      * bar widget is applied again, its button being made anew.
      *
-     * @throws WindowException When no node has the id.
+     * @throws ToolkitRuntimeException When no node has the id.
      */
     public function setItemLabel(string $item, string $label): void
     {
@@ -324,13 +323,13 @@ class GTKMenuBar
         // GTK's macOS exporter applies a model change by index into the native menu, where macOS
         // has put items of its own (Show Tab Bar atop a View menu): the shown bar is built anew.
         $application = $this->session->application();
-        if (GTKBridgeDriver::appWideBar() && $application->getMenubar() === $this->model) {
+        if (GTKBridge::appWideBar() && $application->getMenubar() === $this->model) {
             $application->setMenubar(null);
             $application->setMenubar($this->model);
         }
     }
 
-    /** @throws WindowException When no node has the id. */
+    /** @throws ToolkitRuntimeException When no node has the id. */
     public function itemLabel(string $item): string
     {
         return $this->states->label($item);
@@ -340,11 +339,11 @@ class GTKMenuBar
      * A node's section and index.
      *
      * @return array{GMenu, int}
-     * @throws WindowException When no node has the id.
+     * @throws ToolkitRuntimeException When no node has the id.
      */
     public function place(string $id): array
     {
-        return $this->places[$id] ?? throw new WindowException("No node '{$id}' in menu profile '{$this->profile->name}'.");
+        return $this->places[$id] ?? throw new ToolkitRuntimeException("No node '{$id}' in menu profile '{$this->profile->name}'.");
     }
 
     /** Every action of $group takes the group's chosen id as its state. */
@@ -380,7 +379,7 @@ class GTKMenuBar
 
     protected function toggle(string $item): GSimpleAction
     {
-        return $this->toggles[$item] ?? throw new WindowException("No toggle item '{$item}' in menu profile '{$this->profile->name}'.");
+        return $this->toggles[$item] ?? throw new ToolkitRuntimeException("No toggle item '{$item}' in menu profile '{$this->profile->name}'.");
     }
 
     protected function folder(MenuItem $folder): GMenu

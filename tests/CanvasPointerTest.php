@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Windows\GTKCanvasPointer;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Windows\GTKCanvasPointer;
+use Windows\GTKWindow;
 use Surface\Contracts\HumanInput\Modifiers;
 use Surface\Contracts\HumanInput\MouseButton;
 use Surface\Contracts\Windows\Mail\View\CanvasDragged;

@@ -4,9 +4,9 @@ namespace Jovian\Toolkits\GTK\Primitives\Concerns;
 
 use PangoContext;
 use PangoFontDescription;
-use Surface\Contracts\Windows\Styling\FontMetrics;
-use Surface\Contracts\Windows\Styling\FontSpec;
-use Surface\Contracts\Windows\Styling\FontWeight;
+use Surface\Contracts\Toolkits\Styling\FontMetrics;
+use Surface\Contracts\Toolkits\Styling\FontSpec;
+use Surface\Contracts\Toolkits\Styling\FontWeight;
 
 /**
  * FontSpec as the Pango description GTK's CSS gives a widget (family, weight, italic, px size),

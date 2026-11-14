@@ -6,14 +6,14 @@ use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKButtonImage;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Windows\GTKContextMenu;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Jovian\Toolkits\GTK\GTKWindow;
 use Surface\Contracts\Framebuffers\Framebuffer;
-use Surface\Contracts\Windows\Menus\ContextMenu as ContextMenuContract;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Menus\ContextMenu;
-use Surface\Windows\Primitives\TKMenuButton;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Surface\Contracts\Toolkits\Menus\ContextMenu as ContextMenuContract;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Menus\ContextMenu;
+use Surface\Toolkits\Primitives\TKMenuButton;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A GtkMenuButton over a context menu's model, its "ctx" actions inserted on the button, so a
@@ -28,7 +28,7 @@ class GTKMenuButton extends TKMenuButton implements GTKView
     protected ?GTKContextMenu $items = null;
 
     /**
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, string $label, ContextMenuContract $menu)
     {
@@ -73,7 +73,7 @@ class GTKMenuButton extends TKMenuButton implements GTKView
         $this->items = null;
     }
 
-    /** @throws WindowException When GDK makes no texture of the image. */
+    /** @throws ToolkitRuntimeException When GDK makes no texture of the image. */
     private function applyChild(): void
     {
         $box = \GtkBox::new(\GtkOrientation::HORIZONTAL, 4);

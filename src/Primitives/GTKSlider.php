@@ -4,12 +4,12 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\ValueChanged;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKSlider;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\ValueChanged;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKSlider;
 
 /**
  * A horizontal slider over GtkScale with its value label hidden. Values are continuous;
@@ -28,13 +28,13 @@ class GTKSlider extends TKSlider implements GTKView
      * @param float $min
      * @param float $max
      * @param float $value
-     * @throws WindowException When the name is not valid, the range is not finite with min < max, or the value is not finite.
+     * @throws ToolkitRuntimeException When the name is not valid, the range is not finite with min < max, or the value is not finite.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, float $min, float $max, float $value)
     {
         parent::__construct($name, $window, $parent, $placement, $min, $max, $value);
         $this->adoptNative(\GtkScale::newWithRange(\GtkOrientation::HORIZONTAL, $this->min, $this->max, ($this->max - $this->min) / 100)
-            ?? throw new WindowException("Slider '{$this->path()}' cannot range {$this->min}..{$this->max}: GTK made no scale."));
+            ?? throw new ToolkitRuntimeException("Slider '{$this->path()}' cannot range {$this->min}..{$this->max}: GTK made no scale."));
         $this->widgetScale()->setDrawValue(false);
         $this->applyRange($this->min, $this->max);
         $this->applyValue($this->value);

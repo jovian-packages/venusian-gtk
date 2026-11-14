@@ -3,27 +3,27 @@
 namespace Jovian\Toolkits\GTK\Input;
 
 use Closure;
+use Jovian\Toolkits\GTK\GTKBridge;
+use Jovian\Toolkits\GTK\GTKSession;
+use GdkButtonEvent;
+use GdkEvent;
+use GdkEventType;
+use GdkScrollEvent;
+use GdkScrollRelativeDirection;
+use GdkScrollUnit;
+use GdkTouchEvent;
 use GtkApplicationWindow;
 use GtkEventController;
 use GtkEventControllerFocus;
 use GtkEventControllerKey;
-use GtkEventControllerMotion;
 use GtkEventControllerLegacy;
+use GtkEventControllerMotion;
 use GtkEventControllerScroll;
 use GtkIMContext;
 use GtkIMMulticontext;
 use GtkPropagationPhase;
 use GtkWidget;
-use GdkButtonEvent;
-use GdkEvent;
-use GdkEventType;
-use GdkScrollEvent;
-use GdkTouchEvent;
-use GdkScrollRelativeDirection;
-use GdkScrollUnit;
-use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
-use Jovian\Toolkits\GTK\Bridge\GTKSession;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Jovian\Toolkits\GTK\GTKWindow;
 use Surface\Contracts\HumanInput\HumanInputException;
 use Surface\Contracts\HumanInput\InputEngineDriver;
 use Surface\Contracts\HumanInput\InputTap;
@@ -97,7 +97,7 @@ final class GTKInputEngine implements InputEngineDriver, InputTap
      * @param (Closure(GtkEventControllerScroll): bool)|null $inverted whether the scroll being handled is inverted from the physical motion
      *        (natural scrolling); GdkScrollEvent::getRelativeDirection() by default, which GTK 4.20+ has
      */
-    public function __construct(InputFrame $frame, private readonly GTKBridgeDriver $driver, ?Closure $active = null, ?Closure $inverted = null)
+    public function __construct(InputFrame $frame, private readonly GTKBridge $driver, ?Closure $active = null, ?Closure $inverted = null)
     {
         $this->keyboard = new Keyboard($frame);
         $this->mouse = new Mouse($frame);

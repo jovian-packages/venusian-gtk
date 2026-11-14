@@ -36,7 +36,7 @@ function dialogMail(): array
 }
 
 /** A shown main window. */
-function shownMain(): Jovian\Toolkits\GTK\Windows\GTKWindow
+function shownMain(): Windows\GTKWindow
 {
     $main = driver()->open('main', 480, 320);
     $main->present();

@@ -5,14 +5,14 @@ namespace Jovian\Toolkits\GTK\Primitives;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
 use Jovian\Toolkits\GTK\Windows\GTKMacTextKeys;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\SelectionChanged;
-use Surface\Contracts\Windows\Mail\View\TextChanged;
-use Surface\Contracts\Windows\Mail\View\TextSubmitted;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKComboBox;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\SelectionChanged;
+use Surface\Contracts\Toolkits\Mail\Views\TextChanged;
+use Surface\Contracts\Toolkits\Mail\Views\TextSubmitted;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKComboBox;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A linked horizontal box of a GtkEntry and a GtkMenuButton whose popover lists the options (a
@@ -51,7 +51,7 @@ class GTKComboBox extends TKComboBox implements GTKView
 
     /**
      * @param list<string> $options
-     * @throws WindowException When the name is not valid or the options are not a list of strings.
+     * @throws ToolkitRuntimeException When the name is not valid or the options are not a list of strings.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, string $value, array $options)
     {

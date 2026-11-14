@@ -4,15 +4,15 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\VideoEnded;
-use Surface\Contracts\Windows\Mail\View\VideoFailed;
-use Surface\Contracts\Windows\Mail\View\VideoPaused;
-use Surface\Contracts\Windows\Mail\View\VideoPlaying;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKVideo;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\VideoEnded;
+use Surface\Contracts\Toolkits\Mail\Views\VideoFailed;
+use Surface\Contracts\Toolkits\Mail\Views\VideoPaused;
+use Surface\Contracts\Toolkits\Mail\Views\VideoPlaying;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKVideo;
 
 /**
  * A video over GtkVideo, one GtkMediaFile per file. GTK plays media through a backend module
@@ -38,13 +38,13 @@ class GTKVideo extends TKVideo implements GTKView
      * @param TKPrimitiveGroup|null $parent
      * @param Placement $placement
      * @param string|null $file
-     * @throws WindowException When the name is not valid, or GTK has no media backend.
+     * @throws ToolkitRuntimeException When the name is not valid, or GTK has no media backend.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, ?string $file)
     {
         // With no media backend, GTK's media file is its GtkNoMediaFile stand-in.
         if (\GtkMediaFile::new()->typeName() === 'GtkNoMediaFile') {
-            throw new WindowException('TKVideo needs the GTK media backend (libgtk-4-media-gstreamer).');
+            throw new ToolkitRuntimeException('TKVideo needs the GTK media backend (libgtk-4-media-gstreamer).');
         }
         parent::__construct($name, $window, $parent, $placement, $file);
         $this->adoptNative(\GtkVideo::new());

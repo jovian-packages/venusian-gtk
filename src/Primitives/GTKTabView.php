@@ -2,19 +2,19 @@
 
 namespace Jovian\Toolkits\GTK\Primitives;
 
+use Jovian\Toolkits\GTK\Contracts\Primitives\GTKContainer;
 use GtkLabel;
 use GtkNotebook;
 use GtkWidget;
-use Jovian\Toolkits\GTK\Contracts\Primitives\GTKContainer;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\TabSelected;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\Primitives\TKColumn;
-use Surface\Contracts\Windows\Primitives\TKPrimitive;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKTabView;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\TabSelected;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\Primitives\TKColumn;
+use Surface\Contracts\Toolkits\Primitives\TKPrimitive;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKTabView;
 
 /**
  * A tab view over GtkNotebook, one page per column, its tab a GtkLabel. switch-page fires for
@@ -32,7 +32,7 @@ class GTKTabView extends TKTabView implements GTKContainer
      * @param GTKWindow $window
      * @param TKPrimitiveGroup|null $parent
      * @param Placement $placement
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement)
     {

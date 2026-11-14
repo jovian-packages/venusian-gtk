@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Jovian\Toolkits\GTK\Primitives\GTKSplitView;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use Windows\GTKWindow;
 use Surface\Contracts\Windows\Mail\View\TabSelected;
 use Surface\Contracts\Windows\Primitives\Align;
 

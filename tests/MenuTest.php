@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
-use Jovian\Toolkits\GTK\Windows\GTKMenuBar;
-use Surface\Windows\Menus\Accelerator;
+use deprecated\Bridge\GTKBridgeDriver;
+use Windows\GTKMenuBar;
 use Surface\Contracts\Windows\Mail\MenuActivated;
 use Surface\Contracts\Windows\Mail\MenuRadioChosen;
 use Surface\Contracts\Windows\Mail\MenuToggled;
 use Surface\Contracts\Windows\Mail\QuitRequested;
 use Surface\Contracts\Windows\WindowException;
+use Surface\Windows\Menus\Accelerator;
 
 beforeEach(function (): void {
     driver()->closeAll();

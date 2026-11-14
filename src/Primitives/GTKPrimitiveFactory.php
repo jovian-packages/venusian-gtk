@@ -3,46 +3,46 @@
 namespace Jovian\Toolkits\GTK\Primitives;
 
 use DateTimeImmutable;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Menus\ContextMenu;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\Primitives\PrimitiveFactory;
-use Surface\Contracts\Windows\Primitives\TKButton;
-use Surface\Contracts\Windows\Primitives\TKCanvas;
-use Surface\Contracts\Windows\Primitives\TKCheckbox;
-use Surface\Contracts\Windows\Primitives\TKColumn;
-use Surface\Contracts\Windows\Primitives\TKComboBox;
-use Surface\Contracts\Windows\Primitives\TKDatepicker;
-use Surface\Contracts\Windows\Primitives\TKDropdown;
-use Surface\Contracts\Windows\Primitives\TKFixed;
-use Surface\Contracts\Windows\Primitives\TKGrid;
-use Surface\Contracts\Windows\Primitives\TKImage;
-use Surface\Contracts\Windows\Primitives\TKLabel;
-use Surface\Contracts\Windows\Primitives\TKLink;
-use Surface\Contracts\Windows\Primitives\TKMenuButton;
-use Surface\Contracts\Windows\Primitives\TKPrimitiveGroup as GroupContract;
-use Surface\Contracts\Windows\Primitives\TKProgressBar;
-use Surface\Contracts\Windows\Primitives\TKRow;
-use Surface\Contracts\Windows\Primitives\TKScrollBar;
-use Surface\Contracts\Windows\Primitives\TKScrollView;
-use Surface\Contracts\Windows\Primitives\TKSeparator;
-use Surface\Contracts\Windows\Primitives\TKSlider;
-use Surface\Contracts\Windows\Primitives\TKSpinner;
-use Surface\Contracts\Windows\Primitives\TKSplitView;
-use Surface\Contracts\Windows\Primitives\TKTabView;
-use Surface\Contracts\Windows\Primitives\TKTable;
-use Surface\Contracts\Windows\Primitives\TKSegmentedControl;
-use Surface\Contracts\Windows\Primitives\TKCollectionView;
-use Surface\Contracts\Windows\Primitives\TKListView;
-use Surface\Contracts\Windows\Primitives\TKTextArea;
-use Surface\Contracts\Windows\Primitives\TKTextInput;
-use Surface\Contracts\Windows\Primitives\TKToggle;
-use Surface\Contracts\Windows\Primitives\TKToggleButton;
-use Surface\Contracts\Windows\Primitives\TKTree;
-use Surface\Contracts\Windows\Primitives\TKVideo;
-use Surface\Contracts\Windows\Primitives\TKWebView;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Menus\ContextMenu;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\Primitives\PrimitiveFactory;
+use Surface\Contracts\Toolkits\Primitives\TKButton;
+use Surface\Contracts\Toolkits\Primitives\TKCanvas;
+use Surface\Contracts\Toolkits\Primitives\TKCheckbox;
+use Surface\Contracts\Toolkits\Primitives\TKColumn;
+use Surface\Contracts\Toolkits\Primitives\TKComboBox;
+use Surface\Contracts\Toolkits\Primitives\TKDatepicker;
+use Surface\Contracts\Toolkits\Primitives\TKDropdown;
+use Surface\Contracts\Toolkits\Primitives\TKFixed;
+use Surface\Contracts\Toolkits\Primitives\TKGrid;
+use Surface\Contracts\Toolkits\Primitives\TKImage;
+use Surface\Contracts\Toolkits\Primitives\TKLabel;
+use Surface\Contracts\Toolkits\Primitives\TKLink;
+use Surface\Contracts\Toolkits\Primitives\TKMenuButton;
+use Surface\Contracts\Toolkits\Primitives\TKPrimitiveGroup as GroupContract;
+use Surface\Contracts\Toolkits\Primitives\TKProgressBar;
+use Surface\Contracts\Toolkits\Primitives\TKRow;
+use Surface\Contracts\Toolkits\Primitives\TKScrollBar;
+use Surface\Contracts\Toolkits\Primitives\TKScrollView;
+use Surface\Contracts\Toolkits\Primitives\TKSeparator;
+use Surface\Contracts\Toolkits\Primitives\TKSlider;
+use Surface\Contracts\Toolkits\Primitives\TKSpinner;
+use Surface\Contracts\Toolkits\Primitives\TKSplitView;
+use Surface\Contracts\Toolkits\Primitives\TKTabView;
+use Surface\Contracts\Toolkits\Primitives\TKTable;
+use Surface\Contracts\Toolkits\Primitives\TKSegmentedControl;
+use Surface\Contracts\Toolkits\Primitives\TKCollectionView;
+use Surface\Contracts\Toolkits\Primitives\TKListView;
+use Surface\Contracts\Toolkits\Primitives\TKTextArea;
+use Surface\Contracts\Toolkits\Primitives\TKTextInput;
+use Surface\Contracts\Toolkits\Primitives\TKToggle;
+use Surface\Contracts\Toolkits\Primitives\TKToggleButton;
+use Surface\Contracts\Toolkits\Primitives\TKTree;
+use Surface\Contracts\Toolkits\Primitives\TKVideo;
+use Surface\Contracts\Toolkits\Primitives\TKWebView;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * Mints GTK primitives for one window. Each mint takes the host's pending placement (or the
@@ -182,11 +182,11 @@ class GTKPrimitiveFactory implements PrimitiveFactory
 
     /**
      * GTK 4's web view is WebKitGTK 6 (Linux), which ext-gtk does not bind; on macOS there is none.
-     * @throws WindowException
+     * @throws ToolkitRuntimeException
      */
     public function mintWebView(GroupContract $host, string $name): TKWebView
     {
-        throw new WindowException('TKWebView needs WebKitGTK 6, which ext-gtk does not bind; on macOS GTK 4 has no web engine.');
+        throw new ToolkitRuntimeException('TKWebView needs WebKitGTK 6, which ext-gtk does not bind; on macOS GTK 4 has no web engine.');
     }
 
     public function mintColumn(?GroupContract $host, string $name, int $spacing, int $padding): TKColumn
@@ -227,7 +227,7 @@ class GTKPrimitiveFactory implements PrimitiveFactory
     /**
      * @param GroupContract|null $host
      * @return Placement
-     * @throws WindowException When the host needs at() and none is pending.
+     * @throws ToolkitRuntimeException When the host needs at() and none is pending.
      */
     protected static function placement(?GroupContract $host): Placement
     {
@@ -237,7 +237,7 @@ class GTKPrimitiveFactory implements PrimitiveFactory
     /**
      * @param GroupContract|null $host
      * @return TKPrimitiveGroup|null
-     * @throws WindowException When the host is not a Surface container.
+     * @throws ToolkitRuntimeException When the host is not a Surface container.
      */
     protected static function parent(?GroupContract $host): ?TKPrimitiveGroup
     {
@@ -245,6 +245,6 @@ class GTKPrimitiveFactory implements PrimitiveFactory
             return $host;
         }
 
-        throw new WindowException("'{$host->path()}' is a ".get_debug_type($host).', not a Surface container.');
+        throw new ToolkitRuntimeException("'{$host->path()}' is a ".get_debug_type($host).', not a Surface container.');
     }
 }

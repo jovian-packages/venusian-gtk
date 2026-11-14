@@ -5,12 +5,12 @@ namespace Jovian\Toolkits\GTK\Primitives;
 use DateTimeImmutable;
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Mail\View\DateChanged;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKDatepicker;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Mail\Views\DateChanged;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKDatepicker;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
  * A date picker over GtkCalendar. Dates are calendar days (years 1-9999, GDateTime's range):
@@ -33,7 +33,7 @@ class GTKDatepicker extends TKDatepicker implements GTKView
      * @param TKPrimitiveGroup|null $parent
      * @param Placement $placement
      * @param DateTimeImmutable|null $date
-     * @throws WindowException When the name is not valid.
+     * @throws ToolkitRuntimeException When the name is not valid.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, ?DateTimeImmutable $date)
     {
@@ -51,7 +51,7 @@ class GTKDatepicker extends TKDatepicker implements GTKView
     /**
      * @param DateTimeImmutable|null $date
      * @return $this
-     * @throws WindowException When the year is outside 1-9999; nothing changes.
+     * @throws ToolkitRuntimeException When the year is outside 1-9999; nothing changes.
      */
     public function setDate(?DateTimeImmutable $date): static
     {
@@ -101,13 +101,13 @@ class GTKDatepicker extends TKDatepicker implements GTKView
     /**
      * @param DateTimeImmutable $date
      * @return void
-     * @throws WindowException
+     * @throws ToolkitRuntimeException
      */
     protected static function guardYear(DateTimeImmutable $date): void
     {
         $year = (int) $date->format('Y');
         if ($year < 1 || $year > 9999) {
-            throw new WindowException("A date picker shows years 1-9999, got {$year}.");
+            throw new ToolkitRuntimeException("A date picker shows years 1-9999, got {$year}.");
         }
     }
 
@@ -117,7 +117,7 @@ class GTKDatepicker extends TKDatepicker implements GTKView
             return;
         }
         $day = \GDateTime::newLocal((int) $date->format('Y'), (int) $date->format('n'), (int) $date->format('j'), 0, 0, 0.0)
-            ?? throw new WindowException("Datepicker '{$this->path()}' cannot show {$date->format('Y-m-d')}: GLib made no local date.");
+            ?? throw new ToolkitRuntimeException("Datepicker '{$this->path()}' cannot show {$date->format('Y-m-d')}: GLib made no local date.");
         $this->quietly(fn () => $this->widgetCalendar()->selectDay($day));
     }
 

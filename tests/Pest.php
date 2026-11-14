@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
-use Jovian\Toolkits\GTK\Bridge\GTKSession;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
+use deprecated\Bridge\GTKBridgeDriver;
+use deprecated\Bridge\GTKSession;
+use Windows\GTKWindow;
 use Surface\Bridge\ToolkitManager;
 use Surface\Bridge\ToolkitPump;
 use Surface\Contracts\Windows\Mail\View\PrimitiveMail;
@@ -244,11 +244,11 @@ function keycodeOf(string $position): int
 /** The action scope a window's bar names: "app" in the macOS app bar, "win" in a Linux window. */
 function barScope(): string
 {
-    return Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver::appWideBar() ? 'app' : 'win';
+    return \deprecated\Bridge\GTKBridgeDriver::appWideBar() ? 'app' : 'win';
 }
 
 /** Activate an item through the window's "win" group, which holds the bar's actions on every platform. */
-function choose(Jovian\Toolkits\GTK\Windows\GTKWindow $window, string $id): void
+function choose(Windows\GTKWindow $window, string $id): void
 {
     expect($window->native()->activateActionVariant("win.{$id}", null))->toBeTrue();
 }

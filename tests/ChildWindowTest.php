@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Jovian\Toolkits\GTK\Bridge\GTKBridgeDriver;
-use Surface\Contracts\Windows\Mail\WindowCloseRequested;
+use deprecated\Bridge\GTKBridgeDriver;
 use Surface\Contracts\Windows\Mail\WindowClosed;
+use Surface\Contracts\Windows\Mail\WindowCloseRequested;
 use Surface\Contracts\Windows\WindowException;
 
 beforeEach(function (): void {

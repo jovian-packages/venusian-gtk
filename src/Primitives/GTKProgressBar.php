@@ -4,11 +4,11 @@ namespace Jovian\Toolkits\GTK\Primitives;
 
 use Jovian\Toolkits\GTK\Contracts\Primitives\GTKView;
 use Jovian\Toolkits\GTK\Primitives\Concerns\GTKPrimitive;
-use Jovian\Toolkits\GTK\Windows\GTKWindow;
-use Surface\Contracts\Windows\Primitives\Placement;
-use Surface\Contracts\Windows\WindowException;
-use Surface\Windows\Primitives\TKPrimitiveGroup;
-use Surface\Windows\Primitives\TKProgressBar;
+use Jovian\Toolkits\GTK\GTKWindow;
+use Surface\Contracts\Toolkits\Primitives\Placement;
+use Surface\Contracts\Toolkits\ToolkitRuntimeException;
+use Surface\Toolkits\Primitives\TKPrimitiveGroup;
+use Surface\Toolkits\Primitives\TKProgressBar;
 
 /**
  * A progress bar over GtkProgressBar. GTK has no indeterminate mode, only pulse(): a null
@@ -31,7 +31,7 @@ class GTKProgressBar extends TKProgressBar implements GTKView
      * @param TKPrimitiveGroup|null $parent
      * @param Placement $placement
      * @param float|null $fraction
-     * @throws WindowException When the name is not valid or the fraction is outside 0..1.
+     * @throws ToolkitRuntimeException When the name is not valid or the fraction is outside 0..1.
      */
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement, ?float $fraction)
     {

@@ -17,8 +17,8 @@ use GtkShortcutAction;
 use GtkShortcutController;
 use GtkShortcutTrigger;
 use GtkWindow;
-use Surface\Contracts\Windows\Services\Alert;
-use Surface\Contracts\Windows\Services\AlertStyle;
+use Surface\Contracts\Toolkits\Services\Alert;
+use Surface\Contracts\Toolkits\Services\AlertStyle;
 use WeakReference;
 
 /**
