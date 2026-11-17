@@ -11,11 +11,12 @@ use Surface\Toolkits\Primitives\TKCanvas;
 use Surface\Toolkits\Primitives\TKPrimitiveGroup;
 
 /**
- * A GtkPicture in a box, showing the pixels it was last given as a GdkMemoryTexture stretched
+ * A GtkPicture in an overlay, showing the pixels it was last given as a GdkMemoryTexture stretched
  * over its allocation (the alpha byte is not read, so opaque). It has no natural size: the
  * layout sizes it.
  *
- * It shows pixels and nothing more: it takes no keys or pointer events, and lends no GPU surface.
+ * It takes no keys or pointer events. It lends its overlay to an engine that draws there itself
+ * (a GPU engine adds its own picture over the canvas's); the canvas's picture stays under it.
  */
 class GTKCanvas extends TKCanvas implements GTKView
 {
@@ -29,14 +30,22 @@ class GTKCanvas extends TKCanvas implements GTKView
     public function __construct(string $name, GTKWindow $window, ?TKPrimitiveGroup $parent, Placement $placement)
     {
         parent::__construct($name, $window, $parent, $placement);
-        $box = \GtkBox::new(\GtkOrientation::VERTICAL, 0);
+        $overlay = \GtkOverlay::new();
         $this->picture = \GtkPicture::new();
         $this->picture->setCanShrink(true);
         $this->picture->setContentFit(\GtkContentFit::FILL);
         $this->picture->setHexpand(true);
         $this->picture->setVexpand(true);
-        $box->append($this->picture);
-        $this->adoptNative($box);
+        $overlay->setChild($this->picture);
+        $this->adoptNative($overlay);
+    }
+
+    /** The overlay: an engine adds its own child over the canvas's picture and takes it away again. */
+    public function nativeSurface(): \GtkOverlay
+    {
+        $this->live();
+
+        return $this->native;
     }
 
     /** Device pixels per application pixel on the widget's surface, fractional scales included; the integer factor before the surface exists. */
