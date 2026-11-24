@@ -1,5 +1,35 @@
 # Log
 
+## 2026-11-24
+
+* **Version**: 0.11.2 in composer.json, with ext-gtk `^0.11.2`; venusian/framework and venusian/topside required at `^0.11.0`, and the `../../venusian/*` path repository dropped.
+* **CI**: `.github/workflows/tests.yml` runs the whole suite on ubuntu-24.04 and macos-15, PHP 8.4 and 8.5, NTS and ZTS, with ext-gtk (and ext-appkit on macOS) built from their `0.11.x` branches and venusian/topside resolved from its `0.11.x` checkout. Linux runs it under `xvfb-run` in a `dbus-run-session`.
+* **README**: house style (badges, about, learning, AI note, contributing, conduct, security, license); the reference lives in the docs guides.
+
+## 2026-11-22
+
+* **Creation**: [Menu bar](/architecture/menu-bar.md): `GtkMenuBar` on topside's `TKMenuBar`, with GTK's own API only. [Window](/architecture/window.md) reports activation to topside's menus and takes a bar above its content (Linux); [Testing](/runbooks/testing.md) gains the Windowless suite. 29 windowless checks pass on 8.4 NTS and ZTS.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): list, collection and tree on Topside's TK classes, in the primitive map.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): table and text area on Topside's TK classes, in the primitive map.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): scroll view, tab view, split view and grid on Topside's TK classes, in the primitive map.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): separator, progress bar, spinner, slider, toggle button, segmented control and image on Topside's TK classes, in the primitive map.
+
+## 2026-11-21
+
+* **Update**: [UI primitives](/architecture/ui-primitives.md): text input, combo box, date picker and link on Topside's TK classes; text styling moved from the label to `GtkText`. 30 real-window checks pass.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): check box, switch and dropdown on Topside's `TKCheckbox`, `TKToggle`, `TKDropdown`, in the primitive map. 11 real-window checks pass.
+* **Creation**: [UI primitives](/architecture/ui-primitives.md): column, row, fixed, label and button on Topside's TK classes; the driver declares the primitive map and the window mounts the content column. 35 real-window harness checks pass. Commit 3ba4418.
+* **Update**: [Session](/architecture/session.md) rewritten for the Surface toolkit layer: `Gtk` (the Toolkit), `GtkSession`, `GtkAdapterDriver` replace `GTKSession` and `GTKBridgeDriver`; the window list and after-pump settle are Topside's. Commit `0806316`.
+* **Creation**: [Window](/architecture/window.md): `GtkWindow` on Topside's `ToolkitWindow` lifecycle (close-request, activation, scale; size compared in `settle()`). Checked in topside-dev: open, resize from code, confirm-close and `close()` post the right mail.
+* **Update**: [Config](/api/config.md): keys are now `gtk.application_id`, `gtk.unique_primary_instance`, `gtk.loop_drain_limit`; the provider is on `ToolkitAdapterServiceProvider` and builds no driver until `toolkits.default` asks for `gtk`.
+* **Deprecation**: [Windows and menus](/architecture/windows-and-menus.md), [Primitives](/architecture/primitives.md) and [Input](/architecture/input.md) describe code now under `deprecated/` and `deprecated2/`; kept for history.
+* Not reviewed: [Testing](/runbooks/testing.md) still describes the bridge-era helpers; `tests/Pest.php` builds the new driver, and the suite was not run.
+
+## 2026-11-19
+
+* The native handle lends the `GtkOverlay` itself, not its address (Topside `70610dc`). [primitives](architecture/primitives.md)
+* `GTKCanvas` offers a native handle, kind `gtk.overlay`, the address of its `GtkOverlay`. `nativeSurface()` is gone. Checked in a hidden window: the address is that overlay. [primitives](architecture/primitives.md)
+
 ## 2026-11-10
 
 * [Primitives](architecture/primitives.md): `mintWebView` refuses with `WindowException` (no WebKitGTK binding; none for GTK 4 on macOS). `tests/Primitives/VideoTest.php`: 2 passed, 1 skipped.

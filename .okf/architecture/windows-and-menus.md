@@ -2,9 +2,9 @@
 type: Module
 title: Windows and menus
 description: GtkApplicationWindow per name, close/focus mail, GMenu bars in-window (Linux) or app-wide (macOS), About.
-resource: src/Windows/
+resource: deprecated2/GTKWindow.php
 tags: [gtk, windows, menus]
-status: draft
+status: deprecated
 generated: { by: claude-opus/5.5, at: 2026-10-24T17:25:00Z }
 sources:
   - id: window
@@ -17,6 +17,8 @@ sources:
     resource: src/Bridge/GTKBridgeDriver.php
     title: GTKBridgeDriver
 ---
+
+> **Deprecated (2026-11-21):** Describes the bridge-era `GTKWindow` and `GTKMenuBar`, now under `deprecated/` and `deprecated2/`. The current window is [Window](/architecture/window.md); menus, focus, keys and child windows are not ported to it yet.
 
 # Window
 

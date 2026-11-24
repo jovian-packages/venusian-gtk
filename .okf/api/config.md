@@ -1,19 +1,28 @@
 ---
 type: Reference
 title: Config
-description: bridge.gtk keys read by the driver.
-resource: src/Bridge/GTKBridgeDriver.php
+description: config/gtk.php keys read by the driver and the toolkit.
+resource: config/gtk.php
 tags: [gtk, config]
 status: draft
-generated: { by: claude-opus/5.5, at: 2026-10-01T20:06:29Z }
+generated: { by: claude-opus/5.5, at: 2026-11-21T17:39:27Z }
+sources:
+  - id: config
+    resource: config/gtk.php
+    title: config/gtk.php
+  - id: driver
+    resource: src/GtkAdapterDriver.php
+    title: GtkAdapterDriver
 ---
 
 # Schema
 
-Read through the container's `config`; absent from Surface's published `config/bridge.php`, defaults in code.
+Merged under `gtk` by `VenusianGTKServiceProvider` and published as `config/gtk.php` (tag `gtk-config`). The toolkit is chosen by Topside's `toolkits.default` (`TOOLKIT_DRIVER=gtk`).[^config]
 
 | Key | Default | Meaning |
 |---|---|---|
-| `app.id` | none: connect throws without it | desktop identity: Wayland app_id, X11 `WM_CLASS` (program name), bus name when unique; a packaged build names its `.desktop` file after it |
-| `bridge.gtk.unique` | `false` | `true` = one primary instance per id (a second process becomes remote) |
-| `windows.about.*` | Surface config | About dialog fields |
+| `gtk.application_id` | `env('APP_ID', 'com.venusian.gtk')` | desktop identity: Wayland app_id, X11 `WM_CLASS`, bus name when unique; the driver throws without one |
+| `gtk.unique_primary_instance` | `false` | `true`: one primary instance per id (a second process becomes remote) |
+| `gtk.loop_drain_limit` | `64` | non-blocking iterations one pump runs after its wait ([session](/architecture/session.md)) |
+
+[^config]: config/gtk.php

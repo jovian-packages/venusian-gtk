@@ -1,40 +1,53 @@
 ---
 type: Module
 title: Session
-description: GtkApplication session - register once, hold while connected, budgeted context pump, one-shot fd wake, macOS activation.
-resource: src/Bridge/GTKSession.php
-tags: [gtk, bridge, linux, macos]
+description: GtkApplication held while connected, a budgeted GMainContext pump, a one-shot fd wake, and AppKit activation on macOS.
+resource: src/Gtk.php
+tags: [gtk, session, linux, macos]
 status: draft
-generated: { by: claude-opus/5.5, at: 2026-10-02T23:05:31Z }
+generated: { by: claude-opus/5.5, at: 2026-11-21T17:39:27Z }
 sources:
+  - id: gtk
+    resource: src/Gtk.php
+    title: Gtk (the Toolkit)
   - id: session
-    resource: src/Bridge/GTKSession.php
-    title: GTKSession
+    resource: src/GtkSession.php
+    title: GtkSession
+  - id: driver
+    resource: src/GtkAdapterDriver.php
+    title: GtkAdapterDriver
 ---
 
 # Overview
 
-`GTKSession extends Surface\Bridge\BridgedToolkitSession`; built by `GTKBridgeDriver::connect()` from [config](/api/config.md).[^session]
+Three classes, on Topside's toolkit layer:
 
-| Hook | GTK calls |
+| Class | Extends / implements | Job |
+|---|---|---|
+| `GtkAdapterDriver` | `Surface\Toolkits\Drivers\ToolkitAdapterDriver` | refuses without ext-gtk, and without ext-appkit on macOS; makes the session from [config](/api/config.md); declares `GtkWindow` as its window class |
+| `GtkSession` | `Surface\Toolkits\ToolkitSession` | builds the `Gtk` toolkit once; `application()` returns it typed |
+| `Gtk` | `Surface\Contracts\Toolkits\Toolkit` | the GTK calls below |
+
+The window list and the after-pump settle are Topside's (`ToolkitSession`); the session has no pump override.[^session]
+
+# Calls
+
+| When | GTK calls |
 |---|---|
-| initialize (once) | `g_set_prgname(id)` (GTK names the X11 `WM_CLASS` after it, so docks match the window to a packaged build's `<id>.desktop`), `GtkApplication::new(id, unique ? DEFAULT_FLAGS : NON_UNIQUE)`, no-op `activate` handler, `register()` (startup initialises GTK), default `GMainContext` |
-| connect | `hold()` (alive with no windows), `activate()` |
-| disconnect | `release()` |
-| `pump($ns)` | budget > 0: `g_timeout_add(ceil ms)` + one blocking `iteration(true)`, remove the timeout if it did not fire; then up to `DRAIN_LIMIT` (64) non-blocking iterations while `pending()` |
+| built (once per process) | `g_set_prgname(id)` (X11 `WM_CLASS`, so a dock matches the window to `<id>.desktop`), `GtkApplication::new(id, unique ? DEFAULT_FLAGS : NON_UNIQUE)` (throws for an id GLib refuses), a no-op `activate` handler, `register(null)`, the default `GMainContext` |
+| `connect()` | `hold()` (stays alive with no window), `activate()` |
+| `disconnect()` | `release()` |
+| `pump($ns)` | budget > 0: a one-shot `g_timeout_add(ceil ms)` and one blocking `iteration(true)`; the timeout is removed if it did not fire. Then up to `gtk.loop_drain_limit` (64) non-blocking iterations while `pending()` |
 
-The drain limit keeps an always-ready source (idle re-adding itself) from holding a pump. After the drain, `checkWatched()` reports window content areas and watched [primitive](/architecture/primitives.md) sizes that changed.
+The drain limit keeps a source that is always ready (an idle handler re-adding itself) from holding one pump.[^gtk]
 
 # Wake
 
-`g_unix_fd_add(fd, IN)` returning `G_SOURCE_REMOVE`: ends a wait once, re-armed by the next `pump()`. Release: `g_source_remove`.
+`wakeDescriptor($fd)` keeps the loop's descriptor; each `pump()` arms `g_unix_fd_add($fd, IN)` if it is not armed. The callback returns `G_SOURCE_REMOVE`, so a descriptor the loop has not read yet ends one wait and cannot keep a drain busy.[^gtk]
 
 # macOS
 
-GTK runs on NSApplication. GDK activates the app once, at display open; macOS declines that for a terminal-launched process and GDK has no other activation call. So on Darwin: initialize refuses without ext-appkit (`BridgeException`), and `bringForward()` (called by `present()`) runs `NSApplication::activateIgnoringOtherApps(true)`. Wayland/X11 focus on present.
+GTK runs on NSApplication there. GDK activates the app once, at display open, and macOS declines that for a process started from a terminal. `bringForward()` (called by [the window](/architecture/window.md)'s `present()`) asks `NSApplication::activateIgnoringOtherApps(true)`. Wayland and X11 focus on present.[^gtk]
 
-# About
-
-`showAbout(about, ?parent)`: one `GtkAboutDialog` while open (showing again updates and raises it); program name, version, copyright from `windows.about`, transient for the parent window, non-modal. `close-request` drops it so GTK destroys it: a hidden-but-alive toplevel keeps the macOS frame clock waking the process every frame. `aboutDialog()` = the open one.
-
-[^session]: GTKSession
+[^gtk]: Gtk (the Toolkit)
+[^session]: GtkSession

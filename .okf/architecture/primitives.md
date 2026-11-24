@@ -2,9 +2,9 @@
 type: Module
 title: Primitives
 description: GTK concretes of Surface's TK primitives - factory, containers, leaves, CSS-per-primitive styling, border-box sizes, watched allocations, mail rules.
-resource: src/Primitives/
+resource: deprecated2/Primitives/
 tags: [gtk, primitives, layout, mail]
-status: draft
+status: deprecated
 generated: { by: claude-opus/5.5, at: 2026-11-11T09:30:00Z }
 sources:
   - id: trait
@@ -20,6 +20,8 @@ sources:
     resource: src/Bridge/GTKSession.php
     title: GTKSession
 ---
+
+> **Deprecated (2026-11-21):** Describes the bridge-era GTK primitives, now under `deprecated2/Primitives/`. The adapter has no primitives on Topside's new TK classes yet.
 
 # Overview
 
@@ -93,3 +95,7 @@ GTK has no per-widget resize signal. `GTKSession::watch(primitive)` records its 
 # Web view
 
 `mintWebView` throws `WindowException`: GTK 4's web view is WebKitGTK 6 (`webkitgtk-6.0`, Linux), which ext-gtk does not bind, and Homebrew's webkitgtk is the GTK 3, Linux-only port, so macOS GTK 4 has none.
+
+# Native handle
+
+`GTKCanvas` implements `NativeStage`. `nativeHandle()` is kind `gtk.overlay` and its `GtkOverlay`, the object `native()` returns. Asking adds nothing. The picture stays the overlay's child. A presenter adds its own child and takes that child away. `native()` stays the overlay.

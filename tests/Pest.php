@@ -2,118 +2,173 @@
 
 declare(strict_types=1);
 
-use deprecated\Bridge\GTKBridgeDriver;
-use deprecated\Bridge\GTKSession;
-use Windows\GTKWindow;
-use Surface\Bridge\ToolkitManager;
-use Surface\Bridge\ToolkitPump;
-use Surface\Contracts\Windows\Mail\View\PrimitiveMail;
-use Surface\Windows\ToolkitWindowManager;
+use Jovian\Toolkits\GTK\GtkAdapterDriver;
+use Jovian\Toolkits\GTK\Providers\VenusianGTKServiceProvider;
+use Jovian\Toolkits\GTK\GtkSession;
+use Jovian\Toolkits\GTK\GtkWindow;
+use Surface\Core\Providers\TopsideServiceProvider;
+use Surface\Toolkits\EventLoop\ToolkitPump;
+use Surface\Toolkits\ToolkitAdapters;
 use Voyager\Config\Repository;
+use Voyager\Core\RenderedInstance;
 use Voyager\Vessel\ControlPanel;
 
+/*
+| Integration tests: a real framework core with topside and this package's provider, driving
+| GTK itself through the one workflow the package serves: register, connect, open a window,
+| present it, resize it, close it. One native application per process, so every test shares one
+| core, one driver and one session; each starts with no window open and no mail pending.
+*/
+
 if (! extension_loaded('gtk')) {
-    throw new RuntimeException('venusian-gtk tests need ext-gtk loaded.');
+    throw new RuntimeException('venusian-gtk integration tests need ext-gtk loaded.');
 }
 
-const TEST_MENUS = [
-    'main' => [
-        ['label' => 'App', 'items' => [
-            ['role' => 'about', 'label' => 'About'],
-            ['separator' => true],
-            ['role' => 'quit', 'label' => 'Quit', 'hotkey' => 'q'],
-        ]],
-        ['label' => 'View', 'items' => [
-            ['id' => 'grid', 'label' => 'Show Grid', 'toggle' => true, 'on' => false],
-            ['id' => 'view.refresh', 'label' => 'Refresh', 'keys' => 'Primary+Shift+F5'],
-            ['id' => 'view.next', 'label' => 'Next Difference', 'keys' => 'Alt+Down'],
-            ['id' => 'view.tab', 'label' => 'Next Tab', 'keys' => 'Primary+]'],
-            ['id' => 'view.erase', 'label' => 'Erase', 'keys' => 'Primary+BACKSPACE'],
-            ['id' => 'view.locked', 'label' => 'Locked', 'enabled' => false, 'items' => [
-                ['id' => 'view.locked.item', 'label' => 'Item'],
-            ]],
-        ]],
-    ],
-    'choices' => [
-        ['label' => 'App', 'items' => [['role' => 'quit', 'label' => 'Quit', 'hotkey' => 'q']]],
-        ['id' => 'compare', 'label' => 'Compare', 'items' => [
-            ['id' => 'case.none', 'label' => 'None', 'radio' => 'ignore-case', 'on' => true],
-            ['id' => 'case.unimportant', 'label' => 'Unimportant', 'radio' => 'ignore-case'],
-            ['id' => 'case.all', 'label' => 'All', 'radio' => 'ignore-case'],
-            ['separator' => true],
-            ['id' => 'compare.wrap', 'label' => 'Wrap', 'toggle' => true],
-            ['id' => 'compare.more', 'label' => 'More', 'items' => [['id' => 'compare.more.deep', 'label' => 'Deep']]],
-        ]],
-    ],
-    'tools' => [
-        ['label' => 'Tools', 'items' => [
-            ['id' => 'tools.measure', 'label' => 'Measure'],
-        ]],
-    ],
-    'editing' => [
-        ['label' => 'App', 'items' => [
-            ['role' => 'quit', 'label' => 'Quit', 'hotkey' => 'q'],
-        ]],
-        ['label' => 'Edit', 'items' => [
-            ['role' => 'undo', 'label' => 'Undo'],
-            ['role' => 'redo', 'label' => 'Redo'],
-            ['separator' => true],
-            ['role' => 'cut', 'label' => 'Cut'],
-            ['role' => 'copy', 'label' => 'Copy'],
-            ['role' => 'paste', 'label' => 'Paste'],
-            ['role' => 'select-all', 'label' => 'Select All'],
-            ['separator' => true],
-            ['id' => 'edit.find', 'label' => 'Find'],
-        ]],
-    ],
-];
+const APPLICATION_ID = 'org.venusian.GtkIntegrationTests';
+
+pest()->beforeEach(function (): void {
+    closeAll();
+})->in('Integration');
 
 /**
- * The one driver for the process: one GtkApplication per process, so every test shares
- * the driver, its session and its windows, through a container like the framework's.
+ * The shared core, made the current container again: a test may build its own.
  */
-function driver(): GTKBridgeDriver
+function toolkitApp(): RenderedInstance
 {
-    static $driver = null;
+    static $app = null;
 
-    if (is_null($driver)) {
-        $container = new ControlPanel();
-        $container->registerInstance('config', new Repository([
-            'app' => ['name' => 'venusian-gtk tests', 'id' => 'org.venusian.GtkDriverTests'],
-            'windows' => [
-                'about' => ['name' => 'venusian-gtk tests', 'version' => '0.10.0', 'copyright' => null],
-                'default_menu' => 'main',
-                'menus' => TEST_MENUS,
-            ],
-        ]));
-        $container->registerInstance('toolkit-bridge', $toolkits = new ToolkitManager($container));
-        $container->registerInstance('toolkit-windows', new ToolkitWindowManager($toolkits, TEST_MENUS, 'main'));
-        $driver = new GTKBridgeDriver($container);
+    if (is_null($app)) {
+        $app = bootCore();
     }
+    ControlPanel::setInstance($app);
 
-    return $driver;
+    return $app;
 }
 
-function session(): GTKSession
+/**
+ * A booted framework core with topside and this package registered, gtk selected.
+ */
+function bootCore(array $config = []): RenderedInstance
+{
+    $app = new RenderedInstance(sys_get_temp_dir());
+    $app->registerInstance('config', new Repository(array_replace_recursive([
+        'app' => ['name' => 'venusian-gtk-tests'],
+        'toolkits' => ['default' => 'gtk'],
+        'gtk' => ['application_id' => APPLICATION_ID],
+    ], $config)));
+    $app->register(TopsideServiceProvider::class);
+    $app->register(VenusianGTKServiceProvider::class);
+    $app->boot();
+
+    return $app;
+}
+
+function driver(): GtkAdapterDriver
+{
+    toolkitApp();
+
+    return ToolkitAdapters::driver();
+}
+
+function session(): GtkSession
 {
     return driver()->connect();
 }
 
-/** Mail the session is holding for a loop, taken out. */
-function takeMail(GTKSession $session): array
+/**
+ * Open and present a window, pumping until its content area has the size asked for.
+ */
+function openWindow(string $name = 'main', int $width = 400, int $height = 300): GtkWindow
+{
+    /** @var GtkWindow $window */
+    $window = driver()->open($name, $width, $height);
+    $window->present();
+    if (! pumpUntil(fn (): bool => $window->size() === [$width, $height])) {
+        throw new RuntimeException("Window '{$name}' was not laid out at {$width}x{$height}: ".json_encode($window->size()));
+    }
+
+    return $window;
+}
+
+/**
+ * Close every open window and drop what they posted.
+ */
+function closeAll(): void
+{
+    $windows = (fn (): array => $this->windows)->call(driver());
+    foreach ($windows as $window) {
+        $window->close();
+    }
+    pumpFor(0.05);
+    takeMail();
+}
+
+/**
+ * Mail the session is holding for a loop, taken out.
+ *
+ * @return list<object>
+ */
+function takeMail(): array
 {
     return (function (): array {
         [$mail, $this->outbox] = [$this->outbox, []];
 
         return $mail;
-    })->call($session);
+    })->call(session());
 }
 
 /**
- * Pump until $done() holds or $seconds pass, and say whether it held. For waits on the OS:
- * the first window a process presents on macOS takes ~200-300 ms to become active.
+ * @param list<object> $mail
+ * @return list<string>
  */
-function pumpUntil(Closure $done, float $seconds = 3.0): bool
+function mailNames(array $mail): array
+{
+    return array_map(static fn (object $m): string => (new ReflectionClass($m))->getShortName(), $mail);
+}
+
+/**
+ * How many of $mail are $type for the window $name.
+ *
+ * @param list<object> $mail
+ */
+function countMail(array $mail, string $type, string $name): int
+{
+    return count(array_filter($mail, fn (object $m): bool => (new ReflectionClass($m))->getShortName() === $type && $m->window === $name));
+}
+
+/**
+ * Pump, collecting mail, until mail of the short class name $type arrives or $seconds pass.
+ *
+ * @return list<object> everything collected
+ */
+function mailUntil(string $type, float $seconds = 2.0): array
+{
+    $mail = [];
+    pumpUntil(function () use (&$mail, $type): bool {
+        array_push($mail, ...takeMail());
+
+        return in_array($type, mailNames($mail), true);
+    }, $seconds);
+
+    return $mail;
+}
+
+/**
+ * Pump through the loop's own sleeper, which sends latest-only mail after each pump.
+ */
+function pumpFor(float $seconds): void
+{
+    $pump = new ToolkitPump(session());
+    $until = microtime(true) + $seconds;
+    while (microtime(true) < $until) {
+        $pump->sleep(10_000_000);
+    }
+}
+
+/**
+ * Pump until $done() holds or $seconds pass; say whether it held.
+ */
+function pumpUntil(Closure $done, float $seconds = 2.0): bool
 {
     $pump = new ToolkitPump(session());
     $until = microtime(true) + $seconds;
@@ -125,215 +180,56 @@ function pumpUntil(Closure $done, float $seconds = 3.0): bool
 }
 
 /**
- * Wait for $window to become active. macOS activation is cooperative (macOS 14+): while the
- * user works in another app the system may decline it, and no API forces it, so there a test
- * that needs an active window is skipped with that reason. Elsewhere activation is required.
- */
-function requireActive(GTKWindow $window): void
-{
-    if (pumpUntil(fn (): bool => $window->isActive())) {
-        return;
-    }
-    if (PHP_OS_FAMILY === 'Darwin') {
-        test()->markTestSkipped('macOS declined to activate the app: another app holds focus (cooperative activation).');
-    }
-    throw new RuntimeException("Window '{$window->name()}' did not become active.");
-}
-
-/** The primitives' own mail the session is holding, taken out; window and menu mail is dropped. */
-function viewMail(GTKSession $session): array
-{
-    return array_values(array_filter(takeMail($session), fn (object $mail): bool => $mail instanceof PrimitiveMail));
-}
-
-/** Pump GTK for $seconds through the loop's own sleeper, which flushes latest-only mail after each pump. */
-function pumpFor(float $seconds): void
-{
-    $pump = new ToolkitPump(session());
-    $until = microtime(true) + $seconds;
-    while (microtime(true) < $until) {
-        $pump->sleep(10_000_000);
-    }
-}
-
-/**
- * Pump until $area's layout has settled: its window is mapped, its scroll adjustments read the
- * same value, upper and page size on two pumps in a row, and the area holds no relayout of its
- * own (isSettling()); say whether that happened within $seconds.
- */
-function settled(Jovian\Toolkits\GTK\Primitives\GTKTextArea $area, float $seconds = 3.0): bool
-{
-    $pump = new ToolkitPump(session());
-    $until = microtime(true) + $seconds;
-    $previous = null;
-    while (microtime(true) < $until) {
-        $pump->sleep(10_000_000);
-        [$horizontal, $vertical] = [$area->native()->getHadjustment(), $area->native()->getVadjustment()];
-        $now = [
-            $horizontal->getValue(), $horizontal->getUpper(), $horizontal->getPageSize(),
-            $vertical->getValue(), $vertical->getUpper(), $vertical->getPageSize(),
-        ];
-        if ($area->native()->getMapped() && ! $area->isSettling() && $now === $previous) {
-            return true;
-        }
-        $previous = $now;
-    }
-
-    return false;
-}
-
-/** @return list<Surface\Contracts\Drawing\SurfaceKind> A dmabuf surface, after the GL context, where GTK can import one (Linux, GTK 4.14+). */
-function gtkDmabufKinds(): array
-{
-    return PHP_OS_FAMILY === 'Linux' && class_exists(GdkDmabufTextureBuilder::class) ? [Surface\Contracts\Drawing\SurfaceKind::DMABUF] : [];
-}
-
-/** What a canvas lends here, as its refusal names it. */
-function gtkLends(): string
-{
-    $kinds = [...(extension_loaded('opengl') ? ['gl-context'] : []), ...(gtkDmabufKinds() === [] ? [] : ['dmabuf'])];
-
-    return $kinds === [] ? 'none' : implode(', ', $kinds);
-}
-
-/** A frame an hour long: within a test only reads end it. */
-function inputFrame(): \Surface\HumanInput\InputFrame
-{
-    return new \Surface\HumanInput\InputFrame(fn (): int => 3_600_000_000_000);
-}
-
-/** A gtk input engine on the shared driver's session, connected; let go by letGoOfInput(). */
-function gtkInput(?Closure $active = null, ?Closure $inverted = null): \Jovian\Toolkits\GTK\Input\GTKInputEngine
-{
-    session();
-    $engine = new \Jovian\Toolkits\GTK\Input\GTKInputEngine(inputFrame(), driver(), $active, $inverted);
-    $GLOBALS['gtk_input_engines'][] = $engine;
-
-    return $engine->connect();
-}
-
-/** Disconnects every engine gtkInput() made: their taps leave the shared session. */
-function letGoOfInput(): void
-{
-    foreach ($GLOBALS['gtk_input_engines'] ?? [] as $engine) {
-        $engine->disconnect();
-    }
-    $GLOBALS['gtk_input_engines'] = [];
-}
-
-/** The engine's controller of $class on $window, wired by a poll. */
-function controllerOf(\Jovian\Toolkits\GTK\Input\GTKInputEngine $engine, string $window, string $class): GtkEventController
-{
-    foreach ($engine->controllersOf($window) as $controller) {
-        if ($controller instanceof $class) {
-            return $controller;
-        }
-    }
-
-    throw new RuntimeException("No {$class} on '{$window}'.");
-}
-
-/** The hardware keycode GTK reports for a key position here: the macOS key code, or the evdev code + 8. */
-function keycodeOf(string $position): int
-{
-    [$mac, $evdev] = ['a' => [0x00, 30], 'q' => [0x0C, 16], 'shift' => [0x38, 42], 'rshift' => [0x3C, 54], 'e' => [0x0E, 18]][$position];
-
-    return PHP_OS_FAMILY === 'Darwin' ? $mac : $evdev + 8;
-}
-
-/** The action scope a window's bar names: "app" in the macOS app bar, "win" in a Linux window. */
-function barScope(): string
-{
-    return \deprecated\Bridge\GTKBridgeDriver::appWideBar() ? 'app' : 'win';
-}
-
-/** Activate an item through the window's "win" group, which holds the bar's actions on every platform. */
-function choose(Windows\GTKWindow $window, string $id): void
-{
-    expect($window->native()->activateActionVariant("win.{$id}", null))->toBeTrue();
-}
-
-/** A text buffer's whole text, hidden characters left out. */
-function bufferText(GtkTextBuffer $buffer): string
-{
-    return $buffer->getText($buffer->getStartIter(), $buffer->getEndIter(), false) ?? '';
-}
-
-/** The iter at $line's start (GTK's buffer end past the last line). */
-function lineIter(GtkTextBuffer $buffer, int $line): GtkTextIter
-{
-    $buffer->getIterAtLine($iter, $line);
-
-    return $iter;
-}
-
-/** The iter at $offset in $line (GTK's line end past it). */
-function lineOffsetIter(GtkTextBuffer $buffer, int $line, int $offset): GtkTextIter
-{
-    $buffer->getIterAtLineOffset($iter, $line, $offset);
-
-    return $iter;
-}
-
-/**
- * ($x, $y) in $from's coordinates in $to's, by gtk_widget_compute_point.
+ * Pump until the native window is the active one, collecting mail. macOS activation is
+ * cooperative: while the user works in another app the system may decline it, and no API
+ * forces it. There the test is skipped; elsewhere activation must happen.
  *
- * @return array{float, float}
+ * @return list<object> the mail collected
  */
-function widgetPoint(GtkWidget $from, GtkWidget $to, float $x, float $y): array
+function requireActive(GtkWindow $window): array
 {
-    expect($from->computePoint($to, new GraphenePoint($x, $y), $point))->toBeTrue();
+    $mail = [];
+    $active = pumpUntil(function () use ($window, &$mail): bool {
+        array_push($mail, ...takeMail());
 
-    return [$point->x, $point->y];
-}
-
-/**
- * The window point of ($x, $y) from $primitive's border-box top-left, once the window is laid out.
- * Shared by the canvas click and canvas pointer tests, which both speak in canvas coordinates.
- *
- * @return array{float, float}
- */
-function canvasPointIn(GTKWindow $window, Surface\Contracts\Windows\Primitives\TKPrimitive $primitive, float $x, float $y): array
-{
-    $window->present();
-    for ($waited = 0; $primitive->native()->getWidth() === 0 && $waited < 60; $waited++) {
-        pumpFor(0.05);
-    }
-    [$bx, $by] = boundsOrigin($primitive->native());
-
-    return widgetPoint($primitive->native(), $window->native(), $x + $bx, $y + $by);
-}
-
-/**
- * The origin of $widget's bounds in its own coordinates: its border box's corner.
- *
- * @return array{float, float}
- */
-function boundsOrigin(GtkWidget $widget): array
-{
-    expect($widget->computeBounds($widget, $bounds))->toBeTrue();
-
-    return [$bounds->origin->x, $bounds->origin->y];
-}
-
-/** Whether GTK has a media backend: without one its media file is the GtkNoMediaFile stand-in. */
-function mediaBackend(): bool
-{
-    return GtkMediaFile::new()->typeName() !== 'GtkNoMediaFile';
-}
-
-/** The first label under $root (popovers included) that shows $text. */
-function labelIn(GtkWidget $root, string $text): ?GtkLabel
-{
-    if ($root instanceof GtkLabel && $root->getText() === $text) {
-        return $root;
-    }
-    for ($child = $root->getFirstChild(); ! is_null($child); $child = $child->getNextSibling()) {
-        $found = labelIn($child, $text);
-        if (! is_null($found)) {
-            return $found;
+        return nativeActive($window);
+    });
+    if (! $active) {
+        if (PHP_OS_FAMILY === 'Darwin') {
+            test()->markTestSkipped('macOS declined to activate the app: another app holds focus.');
         }
+        throw new RuntimeException("Window '{$window->name()}' did not become active.");
     }
+    pumpFor(0.1);
+    array_push($mail, ...takeMail());
 
-    return null;
+    return $mail;
+}
+
+/** The user's close, as the window system sends it. */
+function nativeUserClose(GtkWindow $window): void
+{
+    $window->native()->close();
+}
+
+/** Resize the native window from code, as the window system would. */
+function nativeResize(GtkWindow $window, int $width, int $height): void
+{
+    $window->native()->setDefaultSize($width, $height);
+}
+
+function nativeTitle(GtkWindow $window): string
+{
+    return $window->native()->getTitle();
+}
+
+function nativeActive(GtkWindow $window): bool
+{
+    return $window->native()->isActive();
+}
+
+/** Whether a native window is still shown: a closed one is not. */
+function nativeShown(object $native): bool
+{
+    return $native->getVisible();
 }

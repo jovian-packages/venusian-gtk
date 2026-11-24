@@ -2,15 +2,17 @@
 type: Module
 title: Input
 description: GTKInputEngine, HumanInput's gtk engine.
-resource: src/Input/GTKInputEngine.php
+resource: deprecated2/Input/
 tags: [gtk, human-input]
-status: draft
+status: deprecated
 generated: { by: claude-opus/5.5, at: 2026-10-09T12:00:00Z }
 sources:
   - id: engine
     resource: src/Input/GTKInputEngine.php
     title: GTKInputEngine
 ---
+
+> **Deprecated (2026-11-21):** Describes the bridge-era `GTKInputEngine`, now under `deprecated2/Input/`. Not ported.
 
 # Engine
 
