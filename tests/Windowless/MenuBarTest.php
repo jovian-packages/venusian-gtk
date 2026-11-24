@@ -537,7 +537,7 @@ it('gives a window its own actions and the bar for no window the application\'s'
     choose(unfocusedBar(), 'Default', 'Open');
     expect(array_map(fn (object $m): array => [$m->name(), $m->window], delivered($menus)))
         ->toBe([['menu.clicked.two.go', 'two'], ['menu.clicked.default.open', null]]);
-});
+})->skip(! MAC, 'Topside keeps a bar for no window on macOS only.');
 
 it('drops its actions and shortcuts when its window closes', function (): void {
     $menus = quietMenus();

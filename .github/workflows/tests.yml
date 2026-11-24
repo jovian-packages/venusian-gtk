@@ -76,10 +76,11 @@ jobs:
       - name: Install Composer dependencies
         run: composer update --prefer-stable --no-interaction --no-progress
 
-      - name: Execute tests (Linux)
-        if: runner.os == 'Linux'
-        run: dbus-run-session -- xvfb-run -a php -d memory_limit=128M vendor/bin/pest
+      # Each suite registers one GtkApplication under one id, so each runs in a process of its
+      # own: on a session bus a second registration in the same process is refused.
+      - name: Execute the Windowless suite
+        run: ${{ runner.os == 'Linux' && 'dbus-run-session -- xvfb-run -a ' || '' }}php -d memory_limit=128M vendor/bin/pest --testsuite=Windowless
 
-      - name: Execute tests (macOS)
-        if: runner.os == 'macOS'
-        run: php -d memory_limit=128M vendor/bin/pest
+      - name: Execute the Integration suite
+        if: success() || failure()
+        run: ${{ runner.os == 'Linux' && 'dbus-run-session -- xvfb-run -a ' || '' }}php -d memory_limit=128M vendor/bin/pest --testsuite=Integration
