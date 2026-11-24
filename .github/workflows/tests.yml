@@ -1,0 +1,85 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    # Linux runs the Integration suite on a virtual X display; macOS in the runner's logged-in
+    # session, where GTK runs on NSApplication and the driver needs ext-appkit.
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        php: ['8.4', '8.5']
+        ts: [nts, zts]
+
+    name: PHP ${{ matrix.php }} ${{ matrix.ts == 'zts' && 'ZTS' || 'NTS' }} on ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip
+          tools: composer
+          coverage: none
+        env:
+          phpts: ${{ matrix.ts == 'zts' && 'ts' || 'nts' }}
+
+      - name: Refuse a PHP of the wrong thread safety
+        env:
+          PHP_ZTS: ${{ matrix.ts == 'zts' && '1' || '0' }}
+        run: |
+          php -r 'if ((int) PHP_ZTS !== (int) getenv("PHP_ZTS")) { fwrite(STDERR, "PHP ".PHP_VERSION." is ".(PHP_ZTS ? "ZTS" : "NTS").", the cell asked for the other".PHP_EOL); exit(1); }
+            echo "PHP ", PHP_VERSION, PHP_ZTS ? " ZTS" : " NTS", PHP_EOL;'
+
+      - name: Install GTK (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libgtk-4-dev xvfb xauth dbus
+
+      - name: Install GTK (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gtk4 pkgconf
+
+      - name: Build ext-gtk${{ runner.os == 'macOS' && ' and ext-appkit' || '' }}
+        env:
+          EXTENSIONS: ${{ runner.os == 'macOS' && 'gtk appkit' || 'gtk' }}
+        run: |
+          # Linux's scan directory is root's; Homebrew's PHP 8.5 has its own compiled in but not created.
+          sudo=$([ "$RUNNER_OS" = Linux ] && echo sudo || true)
+          scan_dir="$(php -r 'echo PHP_CONFIG_FILE_SCAN_DIR;')"
+          $sudo mkdir -p "$scan_dir"
+          for ext in $EXTENSIONS; do
+            git clone --depth 1 --branch 0.11.x "https://github.com/php-io-extensions/$ext.git" "../ext-$ext"
+            (cd "../ext-$ext" && phpize && ./configure "--enable-$ext" && make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)")
+            echo "extension=$(cd "../ext-$ext" && pwd)/modules/$ext.so" | $sudo tee "$scan_dir/99-$ext.ini"
+            php --ri "$ext" | head -3
+          done
+
+      - name: Checkout venusian/topside
+        run: git clone --depth 1 --branch 0.11.x https://github.com/VenusianPHP/topside.git ../topside
+
+      - name: Resolve venusian/topside from the checkout
+        run: |
+          composer config repositories.topside '{"type": "path", "url": "../topside", "options": {"symlink": false}}'
+
+      - name: Install Composer dependencies
+        run: composer update --prefer-stable --no-interaction --no-progress
+
+      - name: Execute tests (Linux)
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run -a php -d memory_limit=128M vendor/bin/pest
+
+      - name: Execute tests (macOS)
+        if: runner.os == 'macOS'
+        run: php -d memory_limit=128M vendor/bin/pest
