@@ -5,11 +5,12 @@ namespace Jovian\Toolkits\GTK\UI;
 use GtkGrid as NativeGrid;
 use Surface\Toolkits\UI\TKGrid;
 use Surface\Toolkits\UI\TKPrimitive;
+use Surface\Contracts\Toolkits\UI\Insets;
 use Surface\Contracts\Toolkits\UI\Placement;
 use Jovian\Toolkits\GTK\UI\Concerns\GtkNative;
 
 /**
- * A GtkGrid; padding is CSS padding, inside its background.
+ * A GtkGrid; padding is CSS padding, each side its own, inside its background.
  */
 class GtkGrid extends TKGrid
 {
@@ -22,9 +23,12 @@ class GtkGrid extends TKGrid
     {
         $this->adoptNative(NativeGrid::new());
         $this->applySpacing($this->spacing());
-        if ($this->padding > 0) {
-            $this->declare('padding', "{$this->padding}px");
-        }
+        $this->applyPadding($this->padding());
+    }
+
+    protected function applyPadding(Insets $padding): void
+    {
+        $this->declare('padding', $padding->isZero() ? null : self::cssSides($padding));
     }
 
     protected function attachNative(TKPrimitive $child): void

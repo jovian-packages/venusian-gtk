@@ -1,7 +1,15 @@
 # Log
 
+## 2026-11-25
+
+* **Update**: [UI primitives](/architecture/ui-primitives.md): a move follows topside's `curve()` (81fdf27) as `cubic-bezier()`: easeOutQuint in, easeInQuint out. A 1 s move is 0.83 of the way at 0.3 s and closes mirrored. FADE and SLIDE unchanged. 8 real-window checks pass on 8.4 NTS and ZTS.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): clickable groups on topside's `setClickable()` (22f5126), a `GtkGestureClick` in the bubble phase that controls inside cancel; MOVE_RIGHT, MOVE_LEFT, MOVE_TOP and MOVE_BOTTOM as a CSS translate by the widget's own size, no fade, eased out in and in out. FADE and SLIDE unchanged. 26 real-window checks pass on 8.4 NTS and ZTS.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): `GtkOverlay` on topside's `TKOverlay` (c6a57e2) in the primitive map: a GtkOverlay with an empty main box, children as overlays, fill-both children unmeasured (ext-gtk ae93bd9), fill as FILL align inside it, reorder by re-adding. Per-corner radius as one four-value `border-radius`; clip as GTK's overflow; an image's radius rounds its picture. 35 real-window checks pass on 8.4 NTS and ZTS, pixels included.
+
 ## 2026-11-24
 
+* **Update**: [UI primitives](/architecture/ui-primitives.md): a maximum length that cuts the text input's value (length after value, or value after length) sets the value to the cut text through topside's `cutTo()` (9d9e6f1), posting nothing. 5 real-window checks pass on 8.4 NTS and ZTS.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): topside's new UI settings on GTK, a Settings section: padding per side (column, row, grid, tab page) and live; margin, cursor, tooltip and border on every primitive; button style, font, colour, alignment, icon and DEFAULT role; text input search, borderless, read-only, maximum length, and Return reaching the default button; link colour. CANCEL is not shown (no native cancel button for a GtkWindow). 58 real-window checks pass on 8.4 NTS and ZTS; Pest 29 windowless and 20 integration pass on both.
 * **Version**: 0.11.2 in composer.json, with ext-gtk `^0.11.2`; venusian/framework and venusian/topside required at `^0.11.0`, and the `../../venusian/*` path repository dropped.
 * **CI**: `.github/workflows/tests.yml` runs the whole suite on ubuntu-24.04 and macos-15, PHP 8.4 and 8.5, NTS and ZTS, with ext-gtk (and ext-appkit on macOS) built from their `0.11.x` branches and venusian/topside resolved from its `0.11.x` checkout. Linux runs it under `xvfb-run` in a `dbus-run-session`.
 * **README**: house style (badges, about, learning, AI note, contributing, conduct, security, license); the reference lives in the docs guides.

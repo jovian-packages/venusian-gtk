@@ -4,11 +4,13 @@ namespace Jovian\Toolkits\GTK\UI\Concerns;
 
 use GtkBox;
 use GtkOrientation;
+use Surface\Contracts\Toolkits\UI\Insets;
 use Surface\Toolkits\UI\TKPrimitive;
 
 /**
  * What a GTK column and row share: a GtkBox, built with the spacing; padding as CSS padding,
- * which sits inside the background; children appended, removed and reordered in the box.
+ * each side its own, which sits inside the background; children appended, removed and
+ * reordered in the box.
  */
 trait GtkBoxChildren
 {
@@ -20,9 +22,12 @@ trait GtkBoxChildren
     {
         $this->adoptNative(GtkBox::new($this->orientation(), $this->spacing()));
 
-        if ($this->padding > 0) {
-            $this->declare('padding', "{$this->padding}px");
-        }
+        $this->applyPadding($this->padding());
+    }
+
+    protected function applyPadding(Insets $padding): void
+    {
+        $this->declare('padding', $padding->isZero() ? null : self::cssSides($padding));
     }
 
     protected function attachNative(TKPrimitive $child): void

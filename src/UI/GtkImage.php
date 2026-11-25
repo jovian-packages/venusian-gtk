@@ -6,10 +6,12 @@ use GtkBox;
 use GdkTexture;
 use GtkPicture;
 use GtkContentFit;
+use GtkOverflow;
 use GtkOrientation;
 use Surface\Toolkits\UI\TKImage;
 use Surface\Toolkits\ToolkitException;
 use Surface\Contracts\Toolkits\UI\Align;
+use Surface\Contracts\Toolkits\UI\Corners;
 use Surface\Contracts\Toolkits\UI\ImageScaling;
 use Jovian\Toolkits\GTK\UI\Concerns\GtkNative;
 
@@ -17,12 +19,16 @@ use Jovian\Toolkits\GTK\UI\Concerns\GtkNative;
  * A GtkPicture inside a box of its own. A column measures a picture's height for the whole
  * column's width, whatever its halign, so one at START grew to the column (observed): the box
  * hands it that width only while it is to fill.
+ *
+ * Its corner radius rounds the picture too: the box cuts the picture at its rounded edge
+ * (overflow hidden) while it has a radius or clips.
  */
 class GtkImage extends TKImage
 {
     use GtkNative {
         applyFill as private expandBox;
         applyAlign as private alignBox;
+        applyCorners as private roundBox;
     }
 
     private ?GtkPicture $picture = null;
@@ -58,6 +64,22 @@ class GtkImage extends TKImage
     {
         $this->alignBox($horizontal, $vertical);
         $this->picture->setHexpand($this->fills()[0] || $horizontal === Align::FILL);
+    }
+
+    protected function applyCorners(Corners $corners): void
+    {
+        $this->roundBox($corners);
+        $this->cutPicture();
+    }
+
+    protected function applyClip(bool $clip): void
+    {
+        $this->cutPicture();
+    }
+
+    private function cutPicture(): void
+    {
+        $this->native->setOverflow($this->clips() || ! $this->corners()->isZero() ? GtkOverflow::HIDDEN : GtkOverflow::VISIBLE);
     }
 
     protected function applyFile(?string $file): void

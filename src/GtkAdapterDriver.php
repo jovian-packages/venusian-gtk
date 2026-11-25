@@ -63,6 +63,8 @@ use Surface\Contracts\Toolkits\UI\TKSegmentedControl;
 use Jovian\Toolkits\GTK\UI\GtkSegmentedControl;
 use Surface\Contracts\Toolkits\UI\TKImage;
 use Jovian\Toolkits\GTK\UI\GtkImage;
+use Surface\Contracts\Toolkits\UI\TKOverlay;
+use Jovian\Toolkits\GTK\UI\GtkOverlay;
 
 class GtkAdapterDriver extends ToolkitAdapterDriver
 {
@@ -74,6 +76,7 @@ class GtkAdapterDriver extends ToolkitAdapterDriver
         TKColumn::class => GtkColumn::class,
         TKRow::class => GtkRow::class,
         TKFixed::class => GtkFixed::class,
+        TKOverlay::class => GtkOverlay::class,
         TKLabel::class => GtkLabel::class,
         TKButton::class => GtkButton::class,
         TKCheckbox::class => GtkCheckbox::class,

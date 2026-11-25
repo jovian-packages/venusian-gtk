@@ -6,13 +6,21 @@ use Closure;
 use GdkDisplay;
 use GrapheneRect;
 use GtkAlign;
+use GtkOverflow;
 use GtkCssProvider;
+use GtkGestureClick;
+use GtkPropagationPhase;
+use GtkEventSequenceState;
 use GtkWidget;
 use RuntimeException;
 use WeakReference;
 use Surface\NutsAndBolts\Color;
 use Surface\Toolkits\UI\TKFixed;
+use Surface\Toolkits\UI\TKOverlay;
 use Surface\Contracts\Toolkits\UI\Align;
+use Surface\Contracts\Toolkits\UI\Cursor;
+use Surface\Contracts\Toolkits\UI\Corners;
+use Surface\Contracts\Toolkits\UI\Insets;
 use Surface\Contracts\Toolkits\UI\TKTransition;
 
 /**
@@ -21,7 +29,8 @@ use Surface\Contracts\Toolkits\UI\TKTransition;
  * Styling: GTK 4 styles widgets through CSS only, and per-widget style providers are gone, so
  * each primitive's widget carries a CSS class named after its uuid and one display-wide
  * provider holds that class's rule. The rule is rebuilt from the declarations kept here
- * whenever one changes (background, corner radius, padding, font, text colour).
+ * whenever one changes (background, corner radius, padding, font, text colour). Margin and
+ * border are the widget's own node only, never an inner node styleSelector() adds.
  *
  * Transitions: a CSS transition GTK runs itself. PHP only adds and removes two classes and
  * sets one-shot timeouts: GTK has no "transition ended" signal.
@@ -30,10 +39,16 @@ trait GtkNative
 {
     protected ?GtkWidget $native = null;
 
-    /** @var array<string, string> CSS declarations by property */
+    /** @var array<string, string> CSS declarations by property, for styleSelector() */
     private array $declarations = [];
 
+    /** @var array<string, string> CSS declarations by property, for the widget's own node */
+    private array $widget_declarations = [];
+
     private ?GtkCssProvider $style_provider = null;
+
+    /** The widget's overflow before the first setClip(). */
+    private ?GtkOverflow $built_overflow = null;
 
     private ?GtkCssProvider $transition_provider = null;
 
@@ -42,6 +57,9 @@ trait GtkNative
 
     /** A one-shot map handler waiting to start an appear transition. */
     private ?int $map_handler = null;
+
+    /** Listens for primary clicks while a group is clickable. */
+    private ?GtkGestureClick $group_clicks = null;
 
     /** @var list<array{object, int}> signal handlers this primitive connected */
     private array $handlers = [];
@@ -77,6 +95,7 @@ trait GtkNative
     protected function releaseNative(): void
     {
         $this->stopTransition();
+        $this->applyClickable(false);
 
         foreach ($this->handlers as [$instance, $id]) {
             if (g_signal_handler_is_connected($instance, $id)) {
@@ -156,21 +175,105 @@ trait GtkNative
     }
 
     /**
-     * Rounds the background; what is inside is not clipped.
+     * One radius on every corner: the same declaration applyCorners() writes.
      */
     protected function applyCornerRadius(float $radius): void
     {
-        $this->declare('border-radius', $radius > 0.0 ? "{$radius}px" : null);
+        $this->applyCorners(Corners::of($radius));
     }
 
+    /**
+     * One four-value border-radius, top-left, top-right, bottom-right, bottom-left (never the
+     * shorthand mixed with longhands). It rounds the background and border; what is inside is
+     * cut to it only while the primitive clips.
+     */
+    protected function applyCorners(Corners $corners): void
+    {
+        $this->declare('border-radius', $corners->isZero()
+            ? null
+            : implode(' ', array_map(static fn (float $r): string => "{$r}px", $corners->toArray())));
+    }
+
+    /**
+     * GTK's overflow: hidden cuts the children at the widget's rounded edge; false gives the
+     * widget back the overflow it was built with (a scrolled window or a notebook clips of
+     * its own).
+     */
+    protected function applyClip(bool $clip): void
+    {
+        $this->built_overflow ??= $this->native->getOverflow();
+        $this->native->setOverflow($clip ? GtkOverflow::HIDDEN : $this->built_overflow);
+    }
+
+    /**
+     * CSS margin, outside the border and the background; physical sides, as Insets are. Every
+     * GTK container lays a child out by its margin box.
+     */
+    protected function applyMargin(Insets $margin): void
+    {
+        $this->declareOnWidget('margin', $margin->isZero() ? null : self::cssSides($margin));
+    }
+
+    /**
+     * GTK's cursor by its CSS name; null unsets it, so the widget shows its parent's (or its
+     * own inner node's, as an entry's text beam).
+     */
+    protected function applyCursor(?Cursor $cursor): void
+    {
+        $this->native->setCursorFromName(match ($cursor) {
+            null => null,
+            Cursor::ARROW => 'default',
+            Cursor::POINTER => 'pointer',
+            Cursor::TEXT => 'text',
+            Cursor::CROSSHAIR => 'crosshair',
+            Cursor::MOVE => 'move',
+            Cursor::NOT_ALLOWED => 'not-allowed',
+            Cursor::GRAB => 'grab',
+            Cursor::GRABBING => 'grabbing',
+            Cursor::RESIZE_HORIZONTAL => 'ew-resize',
+            Cursor::RESIZE_VERTICAL => 'ns-resize',
+            Cursor::RESIZE_NWSE => 'nwse-resize',
+            Cursor::RESIZE_NESW => 'nesw-resize',
+        });
+    }
+
+    protected function applyTooltip(?string $tooltip): void
+    {
+        $this->native->setTooltipText($tooltip);
+    }
+
+    /**
+     * A solid CSS border on the widget's own node. A null colour is the theme's @borders, which
+     * every theme GTK ships defines; width 0 drops the declaration and the theme's own border
+     * (a button's frame) is back.
+     */
+    protected function applyBorder(int $width, ?Color $color): void
+    {
+        $this->declareOnWidget('border', $width === 0 ? null : "{$width}px solid ".($color?->toCss() ?? '@borders'));
+    }
+
+    /**
+     * In an overlay, GTK places a child by its align alone (expand means nothing there): a
+     * child that fills a way is FILL that way.
+     */
     protected function applyFill(bool $horizontal, bool $vertical): void
     {
         $this->native->setHexpand($horizontal);
         $this->native->setVexpand($vertical);
+
+        if ($this->parent() instanceof TKOverlay) {
+            $this->applyAlign(...$this->aligned());
+        }
     }
 
     protected function applyAlign(Align $horizontal, Align $vertical): void
     {
+        if ($this->parent() instanceof TKOverlay) {
+            [$fillsAcross, $fillsDown] = $this->fills();
+            $horizontal = $fillsAcross ? Align::FILL : $horizontal;
+            $vertical = $fillsDown ? Align::FILL : $vertical;
+        }
+
         $this->native->setHalign(self::gtkAlign($horizontal));
         $this->native->setValign(self::gtkAlign($vertical));
     }
@@ -190,6 +293,42 @@ trait GtkNative
     }
 
     /**
+     * A group's clicks: a GtkGestureClick on primary presses in the bubble phase, so a control
+     * inside (button, entry, check box) claims its own press or release first, which cancels
+     * this one. This one claims the release it takes, so a clickable group around it stays
+     * quiet. The release posts, at the point from the widget's top-left (GTK's coordinates
+     * start inside its border and padding).
+     */
+    protected function applyClickable(bool $on): void
+    {
+        if (! $on) {
+            if (! is_null($this->group_clicks) && ! is_null($this->native)) {
+                $this->native->removeController($this->group_clicks);
+            }
+            $this->group_clicks = null;
+
+            return;
+        }
+
+        $clicks = GtkGestureClick::new();
+        $clicks->setButton(1);
+        $clicks->setPropagationPhase(GtkPropagationPhase::BUBBLE);
+        $self = WeakReference::create($this);
+        g_signal_connect($clicks, 'released', static function (GtkGestureClick $clicks, int $presses, float $x, float $y) use ($self): void {
+            $group = $self->get();
+            if (is_null($group) || is_null($group->native)) {
+                return;
+            }
+            $clicks->setState(GtkEventSequenceState::CLAIMED);
+            $bounds = null;
+            $group->native->computeBounds($group->native, $bounds);
+            $group->groupClicked($x - ($bounds?->origin->x ?? 0.0), $y - ($bounds?->origin->y ?? 0.0));
+        });
+        $this->native->addController($clicks);
+        $this->group_clicks = $clicks;
+    }
+
+    /**
      * Set one CSS declaration of this primitive's rule; null removes it.
      */
     protected function declare(string $property, ?string $value): void
@@ -201,6 +340,28 @@ trait GtkNative
         }
 
         $this->restyle();
+    }
+
+    /**
+     * As declare(), on the widget's own node only.
+     */
+    protected function declareOnWidget(string $property, ?string $value): void
+    {
+        if (is_null($value)) {
+            unset($this->widget_declarations[$property]);
+        } else {
+            $this->widget_declarations[$property] = $value;
+        }
+
+        $this->restyle();
+    }
+
+    /**
+     * CSS's four-side shorthand, top, right, bottom, left.
+     */
+    protected static function cssSides(Insets $insets): string
+    {
+        return "{$insets->top}px {$insets->right}px {$insets->bottom}px {$insets->left}px";
     }
 
     protected function styleClass(): string
@@ -228,22 +389,37 @@ trait GtkNative
             $this->style_provider = null;
         }
 
-        if ($this->declarations === []) {
+        if ($this->declarations === [] && $this->widget_declarations === []) {
             return;
         }
 
-        $body = '';
-        foreach ($this->declarations as $property => $value) {
-            $body .= "{$property}: {$value}; ";
+        $css = '';
+        foreach ([[$this->styleSelector(), $this->declarations], [".{$this->styleClass()}", $this->widget_declarations]] as [$selector, $declarations]) {
+            if ($declarations === []) {
+                continue;
+            }
+            $css .= "{$selector} { ";
+            foreach ($declarations as $property => $value) {
+                $css .= "{$property}: {$value}; ";
+            }
+            $css .= '} ';
         }
 
         $this->style_provider = GtkCssProvider::new();
-        $this->style_provider->loadFromString("{$this->styleSelector()} { {$body}}");
+        $this->style_provider->loadFromString($css);
         gtk_style_context_add_provider_for_display($display, $this->style_provider, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
     }
 
     /**
-     * tk-away is the transparent, offset state; tk-moving carries the CSS transition.
+     * tk-away is the state the widget comes from and goes to; tk-moving carries the CSS
+     * transition.
+     *
+     * A fade or slide: tk-away is transparent and offset by the transition's points, eased
+     * out both ways. A move: tk-away is offset by the widget's own width or height toward its
+     * edge, opacity untouched, on topside's curve (curve(): easeOutQuint appearing, easeInQuint
+     * disappearing) as a CSS cubic-bezier(). The distance is read from the allocation: a
+     * widget going away has one; one appearing is laid out only once shown, so it starts a
+     * window's size away and takes its own size once allocated.
      *
      * Appearing: the widget is shown at tk-away, and tk-away is dropped once GTK has drawn it
      * there, so GTK animates from it (dropped at once, GTK draws the end state with no
@@ -252,19 +428,10 @@ trait GtkNative
      */
     private function playTransition(bool $visible, TKTransition $transition, float $seconds): void
     {
-        [$dx, $dy] = $transition->offset();
-        $class = '.'.$this->styleClass();
-
-        $this->transition_provider = GtkCssProvider::new();
-        $this->transition_provider->loadFromString(
-            "{$class}.tk-moving { transition: opacity {$seconds}s ease-out, transform {$seconds}s ease-out; } "
-            ."{$class}.tk-away { opacity: 0; transform: translate({$dx}px, {$dy}px); }"
-        );
-        gtk_style_context_add_provider_for_display(GdkDisplay::getDefault(), $this->transition_provider, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-
         $duration = max(1, (int) round($seconds * 1000));
 
         if (! $visible) {
+            $this->loadTransition($transition, $seconds, false, $this->size());
             $this->native->addCssClass('tk-moving');
             $this->native->addCssClass('tk-away');
             $this->after($duration, static function (self $primitive): void {
@@ -275,14 +442,24 @@ trait GtkNative
             return;
         }
 
+        $this->loadTransition($transition, $seconds, true, $this->window()->size());
         $this->native->addCssClass('tk-away');
         $this->native->setVisible(true);
 
-        $begin = static function (self $primitive) use ($duration): void {
+        $start = static function (self $primitive) use ($duration): void {
             $primitive->native->addCssClass('tk-moving');
             $primitive->native->removeCssClass('tk-away');
             $primitive->after($duration, static fn (self $primitive) => $primitive->stopTransition());
         };
+
+        // A move starts from its own size, known once GTK has laid it out; then another frame
+        // for GTK to draw it there.
+        $begin = $transition->moves()
+            ? static function (self $primitive) use ($transition, $seconds, $start): void {
+                $primitive->loadTransition($transition, $seconds, true, $primitive->size());
+                $primitive->after(50, $start);
+            }
+            : $start;
 
         // GTK animates a style change only from a style it has drawn: the widget waits for its
         // map, then a frame or so (50 ms, the delay that was observed to animate).
@@ -302,6 +479,38 @@ trait GtkNative
             $primitive->map_handler = null;
             $primitive->after(50, $begin);
         });
+    }
+
+    /**
+     * The transition's two rules, in a provider of their own that replaces any before it.
+     *
+     * @param array{int, int} $size what a move travels: width, height
+     */
+    private function loadTransition(TKTransition $transition, float $seconds, bool $appearing, array $size): void
+    {
+        $class = '.'.$this->styleClass();
+        $edge = $transition->edge();
+
+        if (is_null($edge)) {
+            [$dx, $dy] = $transition->offset();
+            $css = "{$class}.tk-moving { transition: opacity {$seconds}s ease-out, transform {$seconds}s ease-out; } "
+                ."{$class}.tk-away { opacity: 0; transform: translate({$dx}px, {$dy}px); }";
+        } else {
+            $dx = $edge[0] * $size[0];
+            $dy = $edge[1] * $size[1];
+            // PHP 8 writes a float with a dot whatever the locale.
+            $ease = 'cubic-bezier('.implode(', ', array_map(static fn (float $v): string => (string) $v, $transition->curve($appearing))).')';
+            $css = "{$class}.tk-moving { transition: transform {$seconds}s {$ease}; } "
+                ."{$class}.tk-away { transform: translate({$dx}px, {$dy}px); }";
+        }
+
+        $display = GdkDisplay::getDefault();
+        if (! is_null($this->transition_provider)) {
+            gtk_style_context_remove_provider_for_display($display, $this->transition_provider);
+        }
+        $this->transition_provider = GtkCssProvider::new();
+        $this->transition_provider->loadFromString($css);
+        gtk_style_context_add_provider_for_display($display, $this->transition_provider, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
     }
 
     /**

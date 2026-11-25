@@ -3,6 +3,7 @@
 namespace Jovian\Toolkits\GTK\UI;
 
 use GtkEntry;
+use GtkEntryIconPosition;
 use WeakReference;
 use Surface\Toolkits\UI\TKTextInput;
 use Surface\Contracts\Toolkits\Styling\TextAlignment;
@@ -14,6 +15,11 @@ use Jovian\Toolkits\GTK\UI\Support\GtkMacTextKeys;
 /**
  * A GtkEntry. changed is typing (topside drops the second one macOS gives for a key),
  * activate a submit. On macOS it also gets the Mac's text keys.
+ *
+ * A search field is GTK's search look on the entry, the search icon at its start (a
+ * GtkSearchEntry is another widget, without the entry's buffer). Return also activates the
+ * window's default button. Borderless is the frameless entry, read-only an entry the user
+ * cannot edit, the maximum length GTK's own.
  */
 class GtkTextInput extends TKTextInput
 {
@@ -29,6 +35,10 @@ class GtkTextInput extends TKTextInput
         $entry->setVisibility(! $this->isSecret());
         $entry->setPlaceholderText($this->placeholder());
         $entry->getBuffer()->setText($this->value(), -1);
+        $entry->setActivatesDefault(true);
+        if ($this->isSearch()) {
+            $entry->setIconFromIconName(GtkEntryIconPosition::PRIMARY, 'system-search-symbolic');
+        }
         $this->adoptNative($entry);
 
         $self = WeakReference::create($this);
@@ -54,9 +64,13 @@ class GtkTextInput extends TKTextInput
         }
     }
 
+    /**
+     * A maximum length cuts a longer value: the cut text is the value.
+     */
     protected function applyValue(string $value): void
     {
         $this->entryNative()->getBuffer()->setText($value, -1);
+        $this->takeCut();
     }
 
     protected function applyPlaceholder(?string $placeholder): void
@@ -67,6 +81,34 @@ class GtkTextInput extends TKTextInput
     protected function applyAlignment(TextAlignment $alignment): void
     {
         g_object_set_property($this->entryNative(), 'xalign', self::xalign($alignment));
+    }
+
+    protected function applyBorderless(bool $borderless): void
+    {
+        $this->entryNative()->setHasFrame(! $borderless);
+    }
+
+    protected function applyReadOnly(bool $readOnly): void
+    {
+        $this->entryNative()->setEditable(! $readOnly);
+    }
+
+    /**
+     * GTK cuts longer text to the length itself: that cut is code's, so it posts nothing, and
+     * the cut text is the value.
+     */
+    protected function applyMaxLength(?int $length): void
+    {
+        $this->write(fn () => $this->entryNative()->setMaxLength($length ?? 0));
+        $this->takeCut();
+    }
+
+    private function takeCut(): void
+    {
+        $text = $this->entryNative()->getBuffer()->getText();
+        if ($text !== $this->value()) {
+            $this->cutTo($text);
+        }
     }
 
     protected function entryNative(): GtkEntry
