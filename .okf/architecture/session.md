@@ -5,7 +5,7 @@ description: GtkApplication held while connected, a budgeted GMainContext pump, 
 resource: src/Gtk.php
 tags: [gtk, session, linux, macos]
 status: draft
-generated: { by: claude-opus/5.5, at: 2026-11-21T17:39:27Z }
+generated: { by: claude-opus/5.5, at: 2026-11-26T09:00:00Z }
 sources:
   - id: gtk
     resource: src/Gtk.php
@@ -51,3 +51,7 @@ GTK runs on NSApplication there. GDK activates the app once, at display open, an
 
 [^gtk]: Gtk (the Toolkit)
 [^session]: GtkSession
+
+## Colour scheme
+
+`GtkSession::applyColorScheme()` (topside's once-only hook, run after the `GtkApplication` is registered, so `GtkSettings::getDefault()` exists) sets `gtk-application-prefer-dark-theme` true for dark and false for light; system leaves what GTK read. macOS's application menu is GTK's `gtkapplication-quartz.ui` resource, whose "Preferences" label GTK 4.24 lets no application change: there is no `gtk_application_set_app_menu` in GTK 4 and `standard_app_menu` is private to gtkapplication-quartz.c.

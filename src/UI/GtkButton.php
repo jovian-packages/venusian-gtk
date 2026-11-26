@@ -12,6 +12,8 @@ use GtkButton as NativeButton;
 use Surface\Toolkits\UI\TKButton;
 use Surface\Contracts\Toolkits\UI\ButtonRole;
 use Surface\Contracts\Toolkits\UI\ButtonStyle;
+use Surface\Contracts\Toolkits\UI\IconPosition;
+use Surface\Contracts\Toolkits\UI\Insets;
 use Surface\Contracts\Toolkits\Styling\TextAlignment;
 use Jovian\Toolkits\GTK\GtkWindow;
 use Jovian\Toolkits\GTK\UI\Concerns\GtkText;
@@ -25,7 +27,8 @@ use Jovian\Toolkits\GTK\UI\Concerns\GtkNative;
  * which its label inherits. With an icon the child is a box of a GtkImage and the label, the
  * way GTK 4 puts an image beside a label in a button (it has no single call for both). The
  * DEFAULT role is the window's default widget, which Return activates; GTK has no cancel
- * button for a window, so CANCEL is not shown.
+ * button for a window, so CANCEL is not shown. Padding is CSS padding on the button node
+ * (top right bottom left, in pixels), which replaces the theme's; none removes the declaration.
  */
 class GtkButton extends TKButton
 {
@@ -81,7 +84,8 @@ class GtkButton extends TKButton
     protected function applyStyle(ButtonStyle $style): void
     {
         $button = $this->buttonNative();
-        $button->setHasFrame($style === ButtonStyle::DEFAULT);
+        // GTK has no help button: HELP is a framed button, its label shown.
+        $button->setHasFrame($style->framed());
         $style === ButtonStyle::LINK ? $button->addCssClass('link') : $button->removeCssClass('link');
     }
 
@@ -110,7 +114,7 @@ class GtkButton extends TKButton
 
     /**
      * The file when there is one (GTK shows its broken-image icon for one it cannot read), else
-     * the icon theme's $symbol; the image goes before the label.
+     * the icon theme's $symbol; the image goes on the side iconPosition() names.
      */
     protected function applyIcon(?string $file, ?string $symbol): void
     {
@@ -141,9 +145,32 @@ class GtkButton extends TKButton
             $this->content->remove($this->image);
         }
 
-        $this->content->prepend($image);
         $this->image = $image;
+        $this->placeImage();
         $this->applyAlignment($this->alignment);
+    }
+
+    protected function applyPadding(Insets $padding): void
+    {
+        $this->declare('padding', $padding->isZero() ? null : self::cssSides($padding));
+    }
+
+    /**
+     * The image goes before the label or after it, in the box's reading order.
+     */
+    protected function applyIconPosition(IconPosition $position): void
+    {
+        if (! is_null($this->content)) {
+            $this->content->remove($this->image);
+            $this->placeImage();
+        }
+    }
+
+    private function placeImage(): void
+    {
+        $this->iconPosition() === IconPosition::TRAILING
+            ? $this->content->append($this->image)
+            : $this->content->prepend($this->image);
     }
 
     /**

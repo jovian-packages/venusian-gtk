@@ -389,6 +389,25 @@ it('edits a text widget with its own actions, and nothing else', function (): vo
         ->and(GtkMenuBar::edit(null, StandardKind::COPY))->toBeFalse();
 });
 
+it('pastes as plain text for Paste and Match Style, as Paste does', function (): void {
+    quietMenus();
+    $entry = GtkEntry::new();
+    $text = $entry->getFirstChild();
+    $text->activateActionVariant('selection.select-all', null);
+
+    expect(GtkMenuBar::EDIT_ACTIONS[StandardKind::PASTE_AND_MATCH_STYLE->value])
+        ->toBe(GtkMenuBar::EDIT_ACTIONS[StandardKind::PASTE->value])
+        ->and(GtkMenuBar::editWidget($text, StandardKind::PASTE_AND_MATCH_STYLE))->toBeTrue();
+});
+
+it('has an edit action for every edit kind', function (): void {
+    foreach (StandardKind::cases() as $kind) {
+        if ($kind->isEdit()) {
+            expect(GtkMenuBar::EDIT_ACTIONS)->toHaveKey($kind->value);
+        }
+    }
+});
+
 it('lets a standard item given an id report instead', function (): void {
     $menus = quietMenus();
     $this->opened[] = quietWindow($menus, MenuBar::make(Menu::make('Edit it', 'edit', Standard::copy()->id('copy'))));

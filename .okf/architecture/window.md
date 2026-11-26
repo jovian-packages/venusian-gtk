@@ -45,6 +45,14 @@ GTK 4 has no resize signal. `settle()` compares the content box's allocation wit
 * `closeNative()`: a realized window `close()`s (close-request runs inside); a never-realized one takes the close path here and is `destroy()`ed, since GTK skips close-request for it.
 * `beforeClose()` clears the default widget (GTK keeps a destroyed default widget as the default).
 
+# Alert
+
+`showAlert()`: a `GtkAlertDialog` (made with `g_object_new_with_properties`: `gtk_alert_dialog_new` is a printf), `choose()` on the window with a `GCancellable`; `_` in a label is doubled. Default and cancel buttons from the alert; Esc and the dialog's close answer the cancel button, a cancellation the `GError` path, also the cancel button. No style, check box or title: `GtkAlertDialog` has none. `closeAlert()` cancels and dispatches what is pending until the choose finished: cancelled outside a GLib dispatch, GTK finishes it in an idle and only then destroys the dialog's window, which by then went with the parent (destroy-with-parent) and was freed (`gtk_window_destroy` CRITICAL, gtkalertdialog.c 4.24). `tests/Integration/AlertTest.php`: 3 cases; `GtkAlertDialog` gives no way to its buttons.
+
+# Browse
+
+`openUrl()`: `GtkUriLauncher::new($url)->launch()`, the window its parent.
+
 # Not ported yet
 
 From the [bridge-era window](/architecture/windows-and-menus.md): menu bars, focus tracking (FocusGained/FocusLost), window and button-role keys, right clicks, child-window rules.

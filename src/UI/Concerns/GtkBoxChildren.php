@@ -10,7 +10,7 @@ use Surface\Toolkits\UI\TKPrimitive;
 /**
  * What a GTK column and row share: a GtkBox, built with the spacing; padding as CSS padding,
  * each side its own, which sits inside the background; children appended, removed and
- * reordered in the box.
+ * reordered in the box; homogeneous as GTK's own.
  */
 trait GtkBoxChildren
 {
@@ -47,6 +47,16 @@ trait GtkBoxChildren
     {
         $before = $index === 0 ? null : $this->children()[$index - 1]->native();
         $this->boxNative()->reorderChildAfter($child->native(), $before);
+    }
+
+    /**
+     * GTK's homogeneous box: every shown child gets the same length along the axis (margin
+     * included), the largest minimum times the count as the box's own minimum; a hidden child
+     * takes no share.
+     */
+    protected function applyHomogeneous(bool $on): void
+    {
+        $this->boxNative()->setHomogeneous($on);
     }
 
     protected function applySpacing(int $spacing): void

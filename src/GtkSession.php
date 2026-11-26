@@ -3,6 +3,8 @@
 namespace Jovian\Toolkits\GTK;
 
 use GtkAboutDialog;
+use GtkSettings;
+use Surface\Contracts\Toolkits\Styling\ColorScheme;
 use Surface\Toolkits\ToolkitSession;
 use Surface\Toolkits\Menus\AboutPanel;
 use Voyager\Contracts\Core\FrameworkCore;
@@ -26,6 +28,19 @@ class GtkSession extends ToolkitSession
     protected function bootstrapToolkitLibrary(): void
     {
         $this->application = new Gtk($this->application_id, $this->unique);
+    }
+
+    /**
+     * GTK has one switch for it: the application prefers the dark variant of its theme or the
+     * light one. The system's choice is left as GTK read it.
+     */
+    protected function applyColorScheme(ColorScheme $scheme): void
+    {
+        if ($scheme === ColorScheme::SYSTEM) {
+            return;
+        }
+
+        g_object_set_property(GtkSettings::getDefault(), 'gtk-application-prefer-dark-theme', $scheme === ColorScheme::DARK);
     }
 
     public function application(): Gtk

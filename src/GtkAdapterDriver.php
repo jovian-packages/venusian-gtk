@@ -41,6 +41,8 @@ use Surface\Contracts\Toolkits\UI\TKTree;
 use Jovian\Toolkits\GTK\UI\GtkTree;
 use Surface\Contracts\Toolkits\UI\TKTextArea;
 use Jovian\Toolkits\GTK\UI\GtkTextArea;
+use Surface\Contracts\Toolkits\UI\TKWebView;
+use Jovian\Toolkits\GTK\UI\GtkWebView;
 use Surface\Contracts\Toolkits\UI\TKScrollView;
 use Jovian\Toolkits\GTK\UI\GtkScrollView;
 use Surface\Contracts\Toolkits\UI\TKTabView;
@@ -102,6 +104,7 @@ class GtkAdapterDriver extends ToolkitAdapterDriver
         TKCollectionView::class => GtkCollectionView::class,
         TKTree::class => GtkTree::class,
         TKTextArea::class => GtkTextArea::class,
+        TKWebView::class => GtkWebView::class,
     ];
 
     public function __construct(

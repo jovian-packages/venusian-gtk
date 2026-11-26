@@ -10,7 +10,9 @@ use Jovian\Toolkits\GTK\UI\Concerns\GtkText;
 use Jovian\Toolkits\GTK\UI\Concerns\GtkNative;
 
 /**
- * A GtkLabel. Font and text colour are CSS declarations of the primitive's rule.
+ * A GtkLabel. Font and text colour are CSS declarations of the primitive's rule. Runs are
+ * Pango markup (bold, italic, a span's colour) over that font and colour; plain text turns
+ * markup off again, so its '<' and '&' show as written.
  */
 class GtkLabel extends TKLabel
 {
@@ -27,7 +29,35 @@ class GtkLabel extends TKLabel
 
     protected function applyText(string $text): void
     {
+        $this->labelNative()->setUseMarkup(false);
         $this->labelNative()->setText($text);
+    }
+
+    /**
+     * Each run's text escaped for Pango, then wrapped as it is styled. A colour is the span's
+     * foreground, with fgalpha when it is not opaque.
+     */
+    protected function applyRuns(array $runs): void
+    {
+        $markup = '';
+        foreach ($runs as $run) {
+            $piece = htmlspecialchars($run->text, ENT_QUOTES | ENT_XML1 | ENT_SUBSTITUTE, 'UTF-8');
+            if ($run->bold) {
+                $piece = "<b>{$piece}</b>";
+            }
+            if ($run->italic) {
+                $piece = "<i>{$piece}</i>";
+            }
+            if (! is_null($run->color)) {
+                $color = $run->color;
+                $hex = sprintf('#%02x%02x%02x', round($color->red * 255), round($color->green * 255), round($color->blue * 255));
+                $alpha = $color->alpha < 1.0 ? sprintf(' fgalpha="%d"', max(1, (int) round($color->alpha * 65535))) : '';
+                $piece = "<span foreground=\"{$hex}\"{$alpha}>{$piece}</span>";
+            }
+            $markup .= $piece;
+        }
+
+        $this->labelNative()->setMarkup($markup);
     }
 
     protected function applyWrap(bool $wrap): void

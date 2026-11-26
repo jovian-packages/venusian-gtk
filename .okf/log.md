@@ -1,7 +1,22 @@
 # Log
 
+## 2026-11-26
+
+* **Update**: [Menu bar](/architecture/menu-bar.md): `StandardKind::PASTE_AND_MATCH_STYLE` runs `clipboard.paste`. [Session](/architecture/session.md): `applyColorScheme()` sets `gtk-application-prefer-dark-theme`; GTK has no way to relabel macOS's "Preferences". [UI primitives](/architecture/ui-primitives.md): a button's file icon measures the same as a named icon (`ButtonIconSizeTest`).
+* **Update**: [UI primitives](/architecture/ui-primitives.md): `GtkImage` shows a maximum size through ext-gtk's constraint layout and guide (ext-gtk b5e59c8); the cap shrinks a picture and never enlarges it. `tests/Integration/ImageMaxSizeTest.php` (4 cases: own size, 84 px capped at 22 with its row laid out round it, 96 over 84 stays 84, a new file and a cleared maximum). Pest 62 (1 skipped) on 8.4 NTS and ZTS. Seen in stargazer2's settings: 38 pt rows, 22 pt icons, a 96 pt cog, as on AppKit.
+
+* **Update**: [UI primitives](/architecture/ui-primitives.md): `GtkScrollView` reports scrolling from its adjustments' `value-changed`, the position from each one's value, page size and upper end. `tests/Integration/ScrollViewWatchTest.php` (3 cases) on 8.4 NTS and ZTS.
+* **Update**: [UI primitives](/architecture/ui-primitives.md), [Window](/architecture/window.md): `ButtonStyle::HELP` drawn as DEFAULT (GTK has no help button); `openUrl()` through `GtkUriLauncher`. Pest 55 (1 skipped) on 8.4 NTS and ZTS.
+
 ## 2026-11-25
 
+* **Update**: [Window](/architecture/window.md): alerts (topside 85ef6af), `GtkAlertDialog::choose()`; closing with one open finishes the cancelled choose before the window goes. `tests/Integration/AlertTest.php` (3 cases) on 8.4 NTS and ZTS.
+* **Fix**: [UI primitives](/architecture/ui-primitives.md): `GtkScrollView` scrolls over its child's natural size along the axes it scrolls (`vscroll-policy` / `hscroll-policy` GTK_SCROLL_NATURAL on its viewport), the minimum across the others: at GtkScrollable's default (minimum) a fitted picture, whose minimum height is 0, got no height under a wrapping label (measured 158 of 613 in a probe, 0 in a page). Pest 52 (1 skipped) on 8.4 NTS and ZTS.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): `GtkWebView` on topside's `TKWebView` (c0bb08a), an empty box with `supported()` false (GTK 4 has no web view here; WebKitGTK bindings in ext-gtk are planned for Linux), so loads post `WebViewFailed`; button padding as CSS padding on the button. Real-window checks pass; Pest 52 pass (1 skipped: macOS declined activation) on 8.4 NTS and ZTS, the 4 new integration tests among them.
+
+* **Update**: [UI primitives](/architecture/ui-primitives.md): homogeneous columns and rows (topside 2b5ee38) as GtkBox's own homogeneous; ext-gtk already bound it. 11 real-window checks pass on 8.4 NTS and ZTS.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): `playAppear()` on a primitive just built visible (topside a3245fd) plays MOVE_RIGHT from off-screen right with no adapter change; checked against the hidden-then-shown toggle. 9 real-window checks pass on 8.4 NTS and ZTS.
+* **Update**: [UI primitives](/architecture/ui-primitives.md): label runs as Pango markup and a button's trailing icon (topside b83f741); a maximum size stays unshown (no ceiling in GTK 4.24: no property, no CSS `max-width`, no libadwaita). 13 real-window checks pass on 8.4 NTS and ZTS.
 * **Update**: [UI primitives](/architecture/ui-primitives.md): a move follows topside's `curve()` (81fdf27) as `cubic-bezier()`: easeOutQuint in, easeInQuint out. A 1 s move is 0.83 of the way at 0.3 s and closes mirrored. FADE and SLIDE unchanged. 8 real-window checks pass on 8.4 NTS and ZTS.
 * **Update**: [UI primitives](/architecture/ui-primitives.md): clickable groups on topside's `setClickable()` (22f5126), a `GtkGestureClick` in the bubble phase that controls inside cancel; MOVE_RIGHT, MOVE_LEFT, MOVE_TOP and MOVE_BOTTOM as a CSS translate by the widget's own size, no fade, eased out in and in out. FADE and SLIDE unchanged. 26 real-window checks pass on 8.4 NTS and ZTS.
 * **Update**: [UI primitives](/architecture/ui-primitives.md): `GtkOverlay` on topside's `TKOverlay` (c6a57e2) in the primitive map: a GtkOverlay with an empty main box, children as overlays, fill-both children unmeasured (ext-gtk ae93bd9), fill as FILL align inside it, reorder by re-adding. Per-corner radius as one four-value `border-radius`; clip as GTK's overflow; an image's radius rounds its picture. 35 real-window checks pass on 8.4 NTS and ZTS, pixels included.

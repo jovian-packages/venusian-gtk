@@ -2,7 +2,13 @@
 
 namespace Jovian\Toolkits\GTK;
 
+use GAsyncResult;
+use GCancellable;
+use GError;
+use GMainContext;
+use GtkAlertDialog;
 use GtkApplicationWindow;
+use GtkUriLauncher;
 use GtkBox;
 use GtkWidget;
 use GtkOrientation;
@@ -11,6 +17,7 @@ use RuntimeException;
 use Surface\Contracts\Toolkits\Mail\Windows\WindowFocused;
 use Surface\Contracts\Toolkits\Mail\Windows\WindowScaleChanged;
 use Surface\Toolkits\ToolkitWindow;
+use Surface\Contracts\Toolkits\Dialogs\Alert;
 use Surface\Contracts\Toolkits\UI\TKColumn as ColumnContract;
 use WeakReference;
 
@@ -53,6 +60,9 @@ class GtkWindow extends ToolkitWindow
      * Where the content container goes: the area below the bar, expanding both ways.
      */
     protected ?GtkBox $content = null;
+
+    /** Cancels the GtkAlertDialog open on the window, until it is answered. */
+    protected ?GCancellable $alert = null;
 
     public function __construct(
         string $name,
@@ -300,6 +310,72 @@ class GtkWindow extends ToolkitWindow
 
         $this->closed();
         $window->destroy();
+    }
+
+    /**
+     * A GtkAlertDialog, modal to the window, chosen without waiting. Its default and cancel
+     * buttons take Return and Esc; Esc and the dialog's own close answer the cancel button.
+     * GtkAlertDialog has no style, no checkbox and no title: those parts are left out.
+     */
+    protected function showAlert(Alert $alert): void
+    {
+        // gtk_alert_dialog_new() is a printf and is not bound: the message is a property, never a format.
+        /** @var GtkAlertDialog $dialog */
+        $dialog = g_object_new_with_properties('GtkAlertDialog', ['message'], [$alert->message]);
+        if (! is_null($alert->detail)) {
+            $dialog->setDetail($alert->detail);
+        }
+        // Its buttons read one _ as a mnemonic marker, two as an _.
+        $dialog->setButtons(array_map(static fn (string $label): string => str_replace('_', '__', $label), $alert->buttons));
+        $dialog->setDefaultButton($alert->default);
+        $dialog->setCancelButton($alert->cancel);
+        $dialog->setModal(true);
+
+        $cancellable = GCancellable::new();
+        $self = WeakReference::create($this);
+        $cancel = $alert->cancel;
+        $this->alert = $cancellable;
+        $dialog->choose($this->live(), $cancellable, static function (GtkAlertDialog $dialog, GAsyncResult $result) use ($self, $cancellable, $cancel): void {
+            try {
+                $button = $dialog->chooseFinish($result);
+            } catch (GError) {
+                $button = $cancel;
+            }
+            $window = $self->get();
+            if (is_null($window) || $window->alert !== $cancellable) {
+                return;
+            }
+            $window->alert = null;
+            $window->alertAnswered($button);
+        });
+    }
+
+    /**
+     * The dialog is cancelled, and its choose finishes, before the window goes; its answer is
+     * not posted then. Cancelled outside a GLib dispatch (topside's loop is not GLib's), GTK
+     * finishes the choose in an idle, and only then destroys the dialog's window: by then
+     * destroyed and freed with its parent. The pending dispatch runs that idle while the
+     * parent still lives.
+     */
+    protected function closeAlert(): void
+    {
+        $cancellable = $this->alert;
+        if (is_null($cancellable)) {
+            return;
+        }
+
+        $cancellable->cancel();
+        $context = GMainContext::default();
+        while ($this->alert === $cancellable && $context->pending()) {
+            $context->iteration(false);
+        }
+        $this->alert = null;
+    }
+
+    /** GtkUriLauncher opens it with the user's browser, the window its parent. */
+    protected function openUrl(string $url): void
+    {
+        GtkUriLauncher::new($url)->launch($this->live(), null, null);
     }
 
     /** GTK keeps a destroyed default widget as the default: cleared before the content goes. */

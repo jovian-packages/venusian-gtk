@@ -5,7 +5,7 @@ description: One GMenu model per window and one for none focused, with the GActi
 resource: src/Menus/
 tags: [gtk, menus, macos, linux]
 status: draft
-generated: { by: claude-opus/5.5, at: 2026-11-22T23:40:00Z }
+generated: { by: claude-opus/5.5, at: 2026-11-26T09:00:00Z }
 sources:
   - id: bar
     resource: src/Menus/GtkMenuBar.php
@@ -43,7 +43,7 @@ sources:
 | A toggle | a boolean stateful action; activating it asks to change the state, and topside sets it through `change()` |
 | A choice | one string stateful action, one item per option with its value as the target |
 | A label | `GMenuItem` is copied into the menu: the kept item is relabelled and put in again. `_` is doubled: GTK reads one as a mnemonic |
-| Edit kinds | the focused widget's own action (`text.undo`, `clipboard.copy`, `selection.select-all` then `list.select-all`, …) |
+| Edit kinds | the focused widget's own action (`text.undo`, `clipboard.copy`, `selection.select-all` then `list.select-all`, …); Paste and Match Style is `clipboard.paste` too, as GTK's text widgets have one paste and it reads plain text |
 | Close Window | the window's `close()`, through `close-request` and its confirm |
 | Minimize, full screen | `supports()` is false: ext-gtk binds no call for either. Topside shows them disabled and logs once |
 | About panel | `GtkSession::showAbout()`: `GtkAboutDialog`, not modal, one at a time; credits are its comments |

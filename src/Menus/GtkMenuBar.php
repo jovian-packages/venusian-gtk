@@ -62,6 +62,8 @@ class GtkMenuBar extends ToolkitMenuBar
         'cut' => ['clipboard.cut'],
         'copy' => ['clipboard.copy'],
         'paste' => ['clipboard.paste'],
+        // GTK's text widgets have one paste, and it reads plain text.
+        'paste-and-match-style' => ['clipboard.paste'],
         'select-all' => ['selection.select-all', 'list.select-all'],
     ];
 
