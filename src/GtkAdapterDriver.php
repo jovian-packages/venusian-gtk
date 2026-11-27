@@ -7,8 +7,10 @@ use RuntimeException;
 use Voyager\Contracts\Core\FrameworkCore;
 use Surface\Toolkits\Drivers\ToolkitAdapterDriver;
 use Jovian\Toolkits\GTK\Menus\GtkMenuBar;
+use Jovian\Toolkits\GTK\Video\GtkVideoManager;
 use Surface\Contracts\Toolkits\UI\TKRow;
 use Surface\Contracts\Toolkits\UI\TKFixed;
+use Surface\Contracts\Toolkits\UI\TKFlow;
 use Surface\Contracts\Toolkits\UI\TKLabel;
 use Surface\Contracts\Toolkits\UI\TKButton;
 use Surface\Contracts\Toolkits\UI\TKColumn;
@@ -25,6 +27,7 @@ use Jovian\Toolkits\GTK\UI\GtkComboBox;
 use Jovian\Toolkits\GTK\UI\GtkDatepicker;
 use Jovian\Toolkits\GTK\UI\GtkRow;
 use Jovian\Toolkits\GTK\UI\GtkFixed;
+use Jovian\Toolkits\GTK\UI\GtkFlow;
 use Jovian\Toolkits\GTK\UI\GtkLabel;
 use Jovian\Toolkits\GTK\UI\GtkButton;
 use Jovian\Toolkits\GTK\UI\GtkColumn;
@@ -42,7 +45,9 @@ use Jovian\Toolkits\GTK\UI\GtkTree;
 use Surface\Contracts\Toolkits\UI\TKTextArea;
 use Jovian\Toolkits\GTK\UI\GtkTextArea;
 use Surface\Contracts\Toolkits\UI\TKWebView;
+use Surface\Contracts\Toolkits\UI\TKVideo;
 use Jovian\Toolkits\GTK\UI\GtkWebView;
+use Jovian\Toolkits\GTK\UI\GtkVideo;
 use Surface\Contracts\Toolkits\UI\TKScrollView;
 use Jovian\Toolkits\GTK\UI\GtkScrollView;
 use Surface\Contracts\Toolkits\UI\TKTabView;
@@ -78,6 +83,7 @@ class GtkAdapterDriver extends ToolkitAdapterDriver
         TKColumn::class => GtkColumn::class,
         TKRow::class => GtkRow::class,
         TKFixed::class => GtkFixed::class,
+        TKFlow::class => GtkFlow::class,
         TKOverlay::class => GtkOverlay::class,
         TKLabel::class => GtkLabel::class,
         TKButton::class => GtkButton::class,
@@ -105,7 +111,18 @@ class GtkAdapterDriver extends ToolkitAdapterDriver
         TKTree::class => GtkTree::class,
         TKTextArea::class => GtkTextArea::class,
         TKWebView::class => GtkWebView::class,
+        TKVideo::class => GtkVideo::class,
     ];
+
+    private ?GtkVideoManager $video = null;
+
+    /**
+     * The players this toolkit's videos are made with, made the first time a video asks.
+     */
+    public function video(): GtkVideoManager
+    {
+        return $this->video ??= new GtkVideoManager($this->app);
+    }
 
     public function __construct(
         FrameworkCore $app

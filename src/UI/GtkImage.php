@@ -56,12 +56,8 @@ class GtkImage extends TKImage
     protected function bootstrapNative(): void
     {
         $file = $this->file();
-        if (! is_null($file)) {
-            self::guardPicture($file);
-        }
-
         $this->picture = GtkPicture::new();
-        $this->picture->setFilename($file);
+        $this->showFile($file, null);
 
         $box = GtkBox::new(GtkOrientation::HORIZONTAL, 0);
         $box->append($this->picture);
@@ -171,11 +167,7 @@ class GtkImage extends TKImage
 
     protected function applyFile(?string $file): void
     {
-        if (! is_null($file)) {
-            self::guardPicture($file);
-        }
-        // By name: ext-gtk hands an SVG's paintable back as a plain GObject, which setPaintable() refuses.
-        $this->picture->setFilename($file);
+        $this->showFile($file, $this->file());
         $this->sizeGuide();
     }
 
@@ -190,18 +182,26 @@ class GtkImage extends TKImage
     }
 
     /**
-     * GTK answers an empty GtkSvg for a file it cannot read as a picture (observed), so what
-     * is not a texture counts only when the file does hold SVG.
+     * The picture shows $file, decoded once, by GTK itself: by name, as ext-gtk hands an SVG's
+     * paintable back as a plain GObject, which setPaintable() refuses. GTK answers an empty
+     * GtkSvg for a file it cannot read as a picture (observed), so what is not a texture
+     * counts only when the file does hold SVG; one that is not read puts $before back.
      *
      * @throws ToolkitException When GTK reads no picture in it.
      */
-    private static function guardPicture(string $file): void
+    private function showFile(?string $file, ?string $before): void
     {
-        $paintable = GtkPicture::newForFilename($file)->getPaintable();
+        $this->picture->setFilename($file);
+        if (is_null($file)) {
+            return;
+        }
+
+        $paintable = $this->picture->getPaintable();
         $read = $paintable instanceof GdkTexture
             || (! is_null($paintable) && preg_match('/<svg[\s>]/i', (string) file_get_contents($file, length: 4096)) === 1);
 
         if (! $read) {
+            $this->picture->setFilename($before);
             throw new ToolkitException("'{$file}' is not an image GTK reads.");
         }
     }

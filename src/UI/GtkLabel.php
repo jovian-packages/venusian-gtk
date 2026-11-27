@@ -3,6 +3,7 @@
 namespace Jovian\Toolkits\GTK\UI;
 
 use GtkJustification;
+use PangoEllipsizeMode;
 use GtkLabel as NativeLabel;
 use Surface\Toolkits\UI\TKLabel;
 use Surface\Contracts\Toolkits\Styling\TextAlignment;
@@ -13,6 +14,11 @@ use Jovian\Toolkits\GTK\UI\Concerns\GtkNative;
  * A GtkLabel. Font and text colour are CSS declarations of the primitive's rule. Runs are
  * Pango markup (bold, italic, a span's colour) over that font and colour; plain text turns
  * markup off again, so its '<' and '&' show as written.
+ *
+ * Truncating is Pango's ellipsis at the end (setEllipsize(END)), which also gives the label a
+ * minimum width of the ellipsis alone, so a long text never widens what holds it. A wrapping
+ * label that ellipsizes breaks into lines and cuts only the last, so the label does not wrap
+ * while it truncates; ending it gives the wrap back.
  */
 class GtkLabel extends TKLabel
 {
@@ -62,7 +68,18 @@ class GtkLabel extends TKLabel
 
     protected function applyWrap(bool $wrap): void
     {
-        $this->labelNative()->setWrap($wrap);
+        $this->applyLines();
+    }
+
+    protected function applyTruncate(bool $truncate): void
+    {
+        $this->applyLines();
+    }
+
+    private function applyLines(): void
+    {
+        $this->labelNative()->setEllipsize($this->truncates() ? PangoEllipsizeMode::END : PangoEllipsizeMode::NONE);
+        $this->labelNative()->setWrap($this->wraps() && ! $this->truncates());
     }
 
     /**

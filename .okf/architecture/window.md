@@ -5,7 +5,7 @@ description: GtkApplicationWindow with a content box, wired to Topside's window 
 resource: src/GtkWindow.php
 tags: [gtk, windows]
 status: draft
-generated: { by: claude-opus/5.5, at: 2026-11-21T17:39:27Z }
+generated: { by: claude-opus/5.5, at: 2026-11-26T16:00:00Z }
 verified:
   - { by: claude-opus/5.5, at: 2026-11-20T21:20:00Z }
 sources:
@@ -38,7 +38,7 @@ Every handler holds the window weakly, so a closed window is freed.
 
 # Size
 
-GTK 4 has no resize signal. `settle()` compares the content box's allocation with the last one and calls `resized()`; a size with a zero side (not yet allocated) is recorded without mail, so the first allocation is no resize.[^window]
+GTK 4 has no resize signal. `settle()` compares the content box's allocation with the last one and calls `resized()`; a size with a zero side (not yet allocated) is recorded without mail, so the first allocation is no resize. The same call tells each view that watches its size (`watchSize()` / `unwatchSize()`, held weakly) to compare its own: `ViewResized` is topside's `sizeChanged()`.[^window]
 
 # Close
 
@@ -48,6 +48,10 @@ GTK 4 has no resize signal. `settle()` compares the content box's allocation wit
 # Alert
 
 `showAlert()`: a `GtkAlertDialog` (made with `g_object_new_with_properties`: `gtk_alert_dialog_new` is a printf), `choose()` on the window with a `GCancellable`; `_` in a label is doubled. Default and cancel buttons from the alert; Esc and the dialog's close answer the cancel button, a cancellation the `GError` path, also the cancel button. No style, check box or title: `GtkAlertDialog` has none. `closeAlert()` cancels and dispatches what is pending until the choose finished: cancelled outside a GLib dispatch, GTK finishes it in an idle and only then destroys the dialog's window, which by then went with the parent (destroy-with-parent) and was freed (`gtk_window_destroy` CRITICAL, gtkalertdialog.c 4.24). `tests/Integration/AlertTest.php`: 3 cases; `GtkAlertDialog` gives no way to its buttons.
+
+# Save panel
+
+`showSave()`: a `GtkFileDialog` with the request's title, `setInitialName()` and `setInitialFolder(GFile::newForPath())` (each only when given), modal, `save()` on the window with a `GCancellable`. A cancelled or dismissed panel makes `saveFinish()` throw `GError`: the answer is null. `closeSave()` cancels and dispatches what is pending until the save finished, as `closeAlert()` does; the late answer is not posted. `GtkFileDialog` has no getter for what it was given and no way to its panel, so `tests/Integration/SaveTest.php` (5 cases) covers the panel shown without waiting, a request with nothing set, the cancellation, the window's close, and one question at a time; the name, title and folder shown are not read back.
 
 # Browse
 

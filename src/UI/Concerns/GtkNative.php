@@ -14,6 +14,7 @@ use GtkEventSequenceState;
 use GtkWidget;
 use RuntimeException;
 use WeakReference;
+use Jovian\Toolkits\GTK\GtkWindow;
 use Surface\NutsAndBolts\Color;
 use Surface\Toolkits\UI\TKFixed;
 use Surface\Toolkits\UI\TKOverlay;
@@ -235,6 +236,28 @@ trait GtkNative
             Cursor::RESIZE_NWSE => 'nwse-resize',
             Cursor::RESIZE_NESW => 'nesw-resize',
         });
+    }
+
+    /**
+     * GTK 4 has no resize signal for a widget: the window compares the size after each pump,
+     * for the views that are registered with it.
+     */
+    protected function applyWatchSize(bool $on): void
+    {
+        $window = $this->window();
+        if (! $window instanceof GtkWindow) {
+            return;
+        }
+
+        $on ? $window->watchSize($this) : $window->unwatchSize($this);
+    }
+
+    /**
+     * @internal GtkWindow, after each pump
+     */
+    public function settled(): void
+    {
+        $this->sizeChanged();
     }
 
     protected function applyTooltip(?string $tooltip): void

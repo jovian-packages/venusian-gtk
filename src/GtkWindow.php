@@ -5,9 +5,11 @@ namespace Jovian\Toolkits\GTK;
 use GAsyncResult;
 use GCancellable;
 use GError;
+use GFile;
 use GMainContext;
 use GtkAlertDialog;
 use GtkApplicationWindow;
+use GtkFileDialog;
 use GtkUriLauncher;
 use GtkBox;
 use GtkWidget;
@@ -17,8 +19,11 @@ use RuntimeException;
 use Surface\Contracts\Toolkits\Mail\Windows\WindowFocused;
 use Surface\Contracts\Toolkits\Mail\Windows\WindowScaleChanged;
 use Surface\Toolkits\ToolkitWindow;
+use Surface\Toolkits\UI\TKPrimitive;
 use Surface\Contracts\Toolkits\Dialogs\Alert;
+use Surface\Contracts\Toolkits\Dialogs\SaveRequest;
 use Surface\Contracts\Toolkits\UI\TKColumn as ColumnContract;
+use WeakMap;
 use WeakReference;
 
 class GtkWindow extends ToolkitWindow
@@ -64,6 +69,17 @@ class GtkWindow extends ToolkitWindow
     /** Cancels the GtkAlertDialog open on the window, until it is answered. */
     protected ?GCancellable $alert = null;
 
+    /** Cancels the GtkFileDialog open on the window, until it is answered. */
+    protected ?GCancellable $save = null;
+
+    /**
+     * The views that watch their size: each is told after every pump, as GTK 4 reports no
+     * resize of a widget.
+     *
+     * @var WeakMap<TKPrimitive, true>|null
+     */
+    private ?WeakMap $watching = null;
+
     public function __construct(
         string $name,
         GtkSession $session,
@@ -76,6 +92,15 @@ class GtkWindow extends ToolkitWindow
     }
 
     /** A child presents its parent first when the parent is not shown. */
+    /**
+     * The driver this window was opened by.
+     */
+    public function adapter(): GtkAdapterDriver
+    {
+        /** @var GtkAdapterDriver */
+        return $this->adapter;
+    }
+
     public function present(): static
     {
         $window = $this->live();
@@ -157,13 +182,18 @@ class GtkWindow extends ToolkitWindow
     }
 
     /**
-     * End of a pump. GTK 4 has no resize signal, so the allocation is compared here; and an
-     * inactive window's next activation posts WindowFocused.
+     * End of a pump. GTK 4 has no resize signal, so the allocation is compared here, the
+     * window's and each watching view's; and an inactive window's next activation posts
+     * WindowFocused.
      */
     public function settle(): void
     {
         if (is_null($this->window)) {
             return;
+        }
+
+        foreach ($this->watching ?? [] as $view => $_) {
+            $view->settled();
         }
 
         $size = $this->size();
@@ -178,6 +208,23 @@ class GtkWindow extends ToolkitWindow
         if (! $this->isActive()) {
             $this->seen_inactive = true;
         }
+    }
+
+    /**
+     * @internal GtkNative
+     */
+    public function watchSize(TKPrimitive $view): void
+    {
+        $this->watching ??= new WeakMap();
+        $this->watching[$view] = true;
+    }
+
+    /**
+     * @internal GtkNative
+     */
+    public function unwatchSize(TKPrimitive $view): void
+    {
+        unset($this->watching[$view]);
     }
 
     /** The scale changed (another display, a display setting): WindowScaleChanged when it differs from the last posted. */
@@ -370,6 +417,62 @@ class GtkWindow extends ToolkitWindow
             $context->iteration(false);
         }
         $this->alert = null;
+    }
+
+    /**
+     * A GtkFileDialog save panel, modal to the window, chosen without waiting. It opens with
+     * the name, the title and the folder of the request. A cancelled or dismissed panel makes
+     * saveFinish() throw: that answers null.
+     */
+    protected function showSave(SaveRequest $request): void
+    {
+        $dialog = GtkFileDialog::new();
+        if (! is_null($request->title)) {
+            $dialog->setTitle($request->title);
+        }
+        if (! is_null($request->name)) {
+            $dialog->setInitialName($request->name);
+        }
+        if (! is_null($request->directory)) {
+            $dialog->setInitialFolder(GFile::newForPath($request->directory));
+        }
+        $dialog->setModal(true);
+
+        $cancellable = GCancellable::new();
+        $self = WeakReference::create($this);
+        $this->save = $cancellable;
+        $dialog->save($this->live(), $cancellable, static function (GtkFileDialog $dialog, GAsyncResult $result) use ($self, $cancellable): void {
+            try {
+                $path = $dialog->saveFinish($result)->getPath();
+            } catch (GError) {
+                $path = null;
+            }
+            $window = $self->get();
+            if (is_null($window) || $window->save !== $cancellable) {
+                return;
+            }
+            $window->save = null;
+            $window->saveAnswered($path);
+        });
+    }
+
+    /**
+     * As closeAlert(): the panel is cancelled, and its save finishes, before the window goes;
+     * its answer is not posted then.
+     */
+    protected function closeSave(): void
+    {
+        $cancellable = $this->save;
+        if (is_null($cancellable)) {
+            return;
+        }
+
+        $cancellable->cancel();
+        $context = GMainContext::default();
+        while ($this->save === $cancellable && $context->pending()) {
+            $context->iteration(false);
+        }
+        $this->save = null;
     }
 
     /** GtkUriLauncher opens it with the user's browser, the window its parent. */

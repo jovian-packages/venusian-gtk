@@ -13,6 +13,8 @@ Venusian GTK is the GTK 4 toolkit driver for Venusian Topside: it connects PHP t
 
 Want a Linux desktop app that feels at home on GNOME and beyond? Write your view once with Topside and Venusian GTK gives you the real thing: native buttons, text inputs and areas, tables, lists and trees, split and tab views, dialogs, the clipboard, and a menu bar whose Edit items, accelerators and enabled states behave the way GTK users expect.
 
+Need video? A video view plays a file or an https URL through the player you pick in config: GStreamer's playbin through `jovian/venusian-gstreamer`, drawn straight into a `GtkPicture`. GTK's own media player is the default driver; on macOS it has no media backend and plays nothing.
+
 Need more than widgets? A canvas shows your framebuffer as a GTK texture with no pixel passing through PHP, and lends its surface to Venusian's rendering engines, so OpenGL and Vulkan draw straight into your window. And with HumanInput installed, the keyboard, the pointer and the wheel of your GTK windows read from the same app.
 
 Linux first, macOS too. Venusian GTK runs wherever GTK 4 does, from a desktop to a Raspberry Pi; on macOS it runs on `NSApplication` alongside [ext-appkit](https://github.com/php-io-extensions/appkit). Prefer another toolkit? Reach for `jovian/venusian-qt`, `jovian/venusian-appkit` or `jovian/venusian-raven` and keep the same views.

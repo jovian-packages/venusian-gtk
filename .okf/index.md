@@ -9,6 +9,10 @@ okf_version: "0.2"
 * [Menu bar](architecture/menu-bar.md) - One GMenu model per window and one for none focused; GTK's macOS application menu answered through app.about, app.preferences and app.quit; bare keys after the focused widget.
 * [UI primitives](architecture/ui-primitives.md) - The GTK column, row, fixed, label and button on Topside's TK classes, and the native widget each one is.
 
+# Design
+
+* [Video](design/video.md) - Approved, built: a video manager with the 'gtk' driver (the default; unsupported on macOS, Linux left open) and the 'gstreamer' driver over jovian/venusian-gstreamer and gtk4paintablesink; the bindings it needs.
+
 # API
 
 * [Config](api/config.md) - config/gtk.php keys read by the driver and the toolkit.
