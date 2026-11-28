@@ -23,7 +23,7 @@ Environment facts the tests account for:
 * macOS activation is cooperative (14+): with another app in use the system may decline it; `requireActive()` skips the test there with that reason, and fails elsewhere. The first window a process presents takes ~200-300 ms to activate.
 * A desktop in use can wake an idle pump with a foreign event: the budget test samples up to five waits.
 * The Pi panel is 480 px wide; labwc caps windows there, so resize tests stay below it.
-* Video (`tests/Integration/VideoTest.php`): the `gtk` driver's cases (every source fails, it fills) and the `gstreamer` driver's (needs jovian/venusian-gstreamer as a path repository in the workbench, ext-gstreamer and `gtk4paintablesink`), with files and a local HTTP server (`fixtures/serve.php`, byte ranges). `tests/Windowless/VideoManagerTest.php`: the drivers, and the throw without jovian/venusian-gstreamer.
+* Video (`tests/Integration/VideoTest.php`): the `gtk` driver's cases (every source fails, it fills), a view whose driver throws `VideoDriverUnsupported`, a driver name the manager does not know and the `gstreamer` driver's (needs jovian/venusian-gstreamer as a path repository in the workbench, ext-gstreamer and `gtk4paintablesink`), with files and a local HTTP server (`fixtures/serve.php`, byte ranges). `tests/Windowless/VideoManagerTest.php`: the drivers, the `gtk` driver's throw on macOS (its Linux case skips there), and the throw without jovian/venusian-gstreamer.
 * Fixtures: `clip.mp4` (1.2 s 160 x 120 H.264), `tone.m4a` (1 s AAC), `serve.php`.
 
 Workbench (never the repo root):

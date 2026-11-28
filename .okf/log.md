@@ -2,6 +2,7 @@
 
 ## 2026-11-27
 
+* **Update**: [Video](/design/video.md) amendment, approved and built: the `gtk` driver throws `VideoDriverUnsupported` on macOS, and `GtkVideo` catches that one class and has no player (an empty `GtkBox`, `supported()` false, `VideoFailed` with `TKVideo::NO_PLAYER` from topside); a bad driver name still throws. [UI primitives](/architecture/ui-primitives.md), [Config](/api/config.md), [Testing](/runbooks/testing.md). The gstreamer widget case reads the player's widget as the view's box's child (the box came with the maximum size, 58cef98). `VideoManagerTest` 6 and 1 skipped (Linux only), `VideoTest` 25, NTS and ZTS.
 * **Fix**: the `gstreamer` driver's video played on in a hidden container (a drawer slid away): a playbin plays whether or not anything shows it. The player pauses when its widget is unmapped, which GTK does to everything inside a container it hides. `VideoTest`'s hide and removal cases on NTS and ZTS.
 * **Update**: `GtkVideo` shows a maximum size: its own box around the player's widget, GTK's constraint layout and a guide capped at the maximum (as `GtkImage`), FILL read as START on a capped axis so GTK does not hand it the whole room; the box keeps its own expand. `VideoTest`'s three size cases on NTS and ZTS.
 * **Fix**: the `gstreamer` driver's slider fell back while dragged (jovian/venusian-gstreamer e4377a8: `position()` is the seek's target until the seek is done); its view no longer takes its inner widgets' expand. `VideoTest` 20 on NTS and ZTS.

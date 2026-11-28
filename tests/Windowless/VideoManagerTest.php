@@ -6,6 +6,7 @@ use Jovian\Toolkits\GTK\Video\GtkVideoDriver;
 use Jovian\Toolkits\GTK\Video\GtkVideoPlayer;
 use Jovian\Toolkits\GTK\Video\GtkVideoListener;
 use Jovian\Toolkits\GTK\Video\GtkVideoManager;
+use Jovian\Toolkits\GTK\Video\VideoDriverUnsupported;
 use Jovian\Toolkits\GTK\Video\MediaFile\MediaFileVideoDriver;
 use Jovian\Toolkits\GTK\Video\MediaFile\MediaFileVideoPlayer;
 use Jovian\Toolkits\GTK\Video\Gstreamer\GstreamerVideoDriver;
@@ -44,13 +45,35 @@ function gtkSilentListener(): GtkVideoListener
 }
 
 it('makes the driver gtk.video.driver names, once, and one manager for the toolkit', function (): void {
-    $gtk = gtkVideoManager('gtk');
     $gstreamer = gtkVideoManager('gstreamer');
+
+    expect($gstreamer->driver())->toBeInstanceOf(GstreamerVideoDriver::class)
+        ->and($gstreamer->driver())->toBe($gstreamer->driver('gstreamer'))
+        ->and(driver()->video())->toBe(driver()->video());
+});
+
+it('refuses the gtk driver on macOS, naming the driver that plays', function (): void {
+    if (device_os_family() !== 'mac') {
+        test()->markTestSkipped('The gtk driver is made on Linux.');
+    }
+
+    expect(fn () => gtkVideoManager('gtk')->driver())->toThrow(VideoDriverUnsupported::class, "The 'gtk' video driver plays through GTK's media backend, which GTK has no module for on macOS. Name the 'gstreamer' driver in gtk.video.driver.");
+});
+
+it('makes the gtk driver on Linux, with no player yet', function (): void {
+    if (device_os_family() === 'mac') {
+        test()->markTestSkipped('The gtk driver throws on macOS.');
+    }
+    gtk_init();
+    $gtk = gtkVideoManager('gtk');
+    $none = $gtk->driver()->player(gtkSilentListener());
 
     expect($gtk->driver())->toBeInstanceOf(MediaFileVideoDriver::class)
         ->and($gtk->driver())->toBe($gtk->driver('gtk'))
-        ->and($gstreamer->driver())->toBeInstanceOf(GstreamerVideoDriver::class)
-        ->and(driver()->video())->toBe(driver()->video());
+        ->and($gtk->driver()->supported())->toBeFalse()
+        ->and($none)->toBeInstanceOf(MediaFileVideoPlayer::class)
+        ->and($none->widget())->toBeInstanceOf(GtkBox::class);
+    $none->release();
 });
 
 it('takes the default from gtk.video.driver', function (): void {
@@ -76,21 +99,15 @@ it('refuses a driver it does not know', function (): void {
     expect(fn () => gtkVideoManager('nothing')->driver())->toThrow(InvalidArgumentException::class, 'Driver [nothing] not supported.');
 });
 
-it('gives each built-in driver its player, and says whether it plays', function (): void {
+it('gives the gstreamer driver its player, which plays', function (): void {
     gtk_init();
-    $gtk = gtkVideoManager('gtk')->driver();
     $gstreamer = gtkVideoManager('gstreamer')->driver();
-    $none = $gtk->player(gtkSilentListener());
     $media = $gstreamer->player(gtkSilentListener());
 
-    expect($none)->toBeInstanceOf(MediaFileVideoPlayer::class)
-        ->and($none->widget())->toBeInstanceOf(GtkBox::class)
-        ->and($gtk->supported())->toBeFalse()
-        ->and($media)->toBeInstanceOf(GstreamerVideoPlayer::class)
+    expect($media)->toBeInstanceOf(GstreamerVideoPlayer::class)
         ->and($media->picture())->toBeInstanceOf(GtkPicture::class)
         ->and($media->controls()->getVisible())->toBeFalse()
         ->and($gstreamer->supported())->toBeTrue();
-    $none->release();
     $media->release();
 });
 

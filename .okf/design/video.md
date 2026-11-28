@@ -216,3 +216,15 @@ On Linux, Debian trixie's `gstreamer1.0-gtk4` (0.13.5) carries `gtk4paintablesin
 
 * The `gtk` driver's Linux player (`GtkVideo` over `GtkMediaFile`).
 * A mail that says "ready to play" (for a loading face): its own topside design, as on AppKit.
+
+# Amendment: the gtk driver throws on macOS (approved, built)
+
+Angel approved this amendment on 2026-11-27, and it is built. Before it, the `gtk` driver was made on macOS and answered `supported()` with false. A driver asked for on a system it has no player for throws, as every driver does for what it lacks:
+
+* `VideoDriverUnsupported` (`src/Video/VideoDriverUnsupported.php`, a `RuntimeException`): what a driver throws when this system has no player for it.
+* `MediaFileVideoDriver`'s constructor throws it when `device_os_family()` is `mac`: "The 'gtk' video driver plays through GTK's media backend, which GTK has no module for on macOS. Name the 'gstreamer' driver in gtk.video.driver." Linux stays open: until the `GtkVideo` over `GtkMediaFile` player is built, the driver is made there and answers `supported()` with false, as today.
+* `GtkVideo` asks the manager for its driver once, when it is built, and catches `VideoDriverUnsupported` there. A view whose driver cannot be made on this system has no player: `supported()` is false, its native is an empty `GtkBox`, and topside posts `VideoFailed` with `TKVideo::NO_PLAYER` for every source itself. That is what an app sees today; what changes is that the driver says it, and the view decides.
+* Only that class is caught: the manager's "Driver [x] not supported." and a driver's missing extension or package still throw.
+* Tests: `VideoManagerTest` (on macOS the `gtk` driver throws `VideoDriverUnsupported` with the text above; a view on it is an empty box, `supported()` false, `VideoFailed` with `NO_PLAYER`); `VideoTest`'s two `gtk` cases pass unchanged.
+* The README line, the UI primitives page and the log follow.
+

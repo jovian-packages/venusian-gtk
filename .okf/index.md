@@ -11,7 +11,7 @@ okf_version: "0.2"
 
 # Design
 
-* [Video](design/video.md) - Approved, built: a video manager with the 'gtk' driver (the default; unsupported on macOS, Linux left open) and the 'gstreamer' driver over jovian/venusian-gstreamer and gtk4paintablesink; the bindings it needs.
+* [Video](design/video.md) - Approved, built: a video manager with the 'gtk' driver (the default; throws on macOS, and the view then has no player; Linux left open) and the 'gstreamer' driver over jovian/venusian-gstreamer and gtk4paintablesink; the bindings it needs.
 
 # API
 

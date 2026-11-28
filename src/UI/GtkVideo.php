@@ -5,6 +5,7 @@ namespace Jovian\Toolkits\GTK\UI;
 use GtkBox;
 use GtkConstraint;
 use GtkOrientation;
+use GtkWidget;
 use GtkLayoutManager;
 use GtkConstraintGuide;
 use GtkConstraintLayout;
@@ -17,6 +18,7 @@ use Surface\Toolkits\UI\TKVideo;
 use Jovian\Toolkits\GTK\Video\GtkVideoDriver;
 use Jovian\Toolkits\GTK\Video\GtkVideoPlayer;
 use Jovian\Toolkits\GTK\Video\GtkVideoListener;
+use Jovian\Toolkits\GTK\Video\VideoDriverUnsupported;
 use Jovian\Toolkits\GTK\UI\Concerns\GtkNative;
 
 /**
@@ -33,8 +35,12 @@ use Jovian\Toolkits\GTK\UI\Concerns\GtkNative;
  * room whatever it measures, so on a capped axis FILL is read as START, as AppKit places a
  * capped child: the view takes the room up to its maximum, from that edge.
  *
- * supported() is the driver's answer: the 'gtk' driver has no player on macOS, the
- * 'gstreamer' driver plays wherever it can be made.
+ * The view asks the manager for its driver once. A driver made on a system it has no player for
+ * throws VideoDriverUnsupported (the 'gtk' driver on macOS): the view catches it and has no
+ * player, so supported() is false, the box holds an empty box where the player's widget would
+ * be, and topside answers every source with VideoFailed (TKVideo::NO_PLAYER) itself. Every other
+ * throw (a driver name the manager does not know, a driver missing what it needs) goes on.
+ * Otherwise supported() is the driver's answer.
  */
 class GtkVideo extends TKVideo implements GtkVideoListener
 {
@@ -49,6 +55,15 @@ class GtkVideo extends TKVideo implements GtkVideoListener
 
     private ?GtkVideoPlayer $player = null;
 
+    /** The driver; null when this system has no player for it. */
+    private ?GtkVideoDriver $driver = null;
+
+    /** The manager was asked for the driver. */
+    private bool $asked = false;
+
+    /** What the box holds: the player's widget, or an empty box with no player. */
+    private ?GtkWidget $content = null;
+
     /** The box's own layout, kept while a maximum size replaces it. */
     private ?GtkLayoutManager $own_layout = null;
 
@@ -57,13 +72,13 @@ class GtkVideo extends TKVideo implements GtkVideoListener
 
     public function supported(): bool
     {
-        return $this->driver()->supported();
+        return $this->driver()?->supported() ?? false;
     }
 
     protected function bootstrapNative(): void
     {
-        $this->player = $this->driver()->player($this);
-        $widget = $this->player->widget();
+        $this->player = $this->driver()?->player($this);
+        $widget = $this->content = $this->player?->widget() ?? GtkBox::new(GtkOrientation::VERTICAL, 0);
         $widget->setHexpand(true);
         $widget->setVexpand(true);
 
@@ -104,7 +119,7 @@ class GtkVideo extends TKVideo implements GtkVideoListener
         }
 
         if (is_null($this->guide)) {
-            $widget = $this->player->widget();
+            $widget = $this->content;
             $this->own_layout = $this->native->getLayoutManager();
             $layout = GtkConstraintLayout::new();
             $this->native->setLayoutManager($layout);
@@ -134,7 +149,7 @@ class GtkVideo extends TKVideo implements GtkVideoListener
             return;
         }
 
-        $widget = $this->player->widget();
+        $widget = $this->content;
         $own = [$widget->measure(GtkOrientation::HORIZONTAL, -1)['natural'], $widget->measure(GtkOrientation::VERTICAL, -1)['natural']];
         $caps = $this->maximumSize();
         $fills = $this->fills();
@@ -151,8 +166,8 @@ class GtkVideo extends TKVideo implements GtkVideoListener
 
     protected function releaseNative(): void
     {
-        $this->player->release();
-        $this->player = null;
+        $this->player?->release();
+        [$this->player, $this->content] = [null, null];
         $this->releaseWidget();
     }
 
@@ -202,8 +217,8 @@ class GtkVideo extends TKVideo implements GtkVideoListener
         return $this->player->duration();
     }
 
-    /** The player the driver made for this view. */
-    public function player(): GtkVideoPlayer
+    /** The player the driver made for this view; null when this system has no player for it. */
+    public function player(): ?GtkVideoPlayer
     {
         return $this->player;
     }
@@ -235,11 +250,22 @@ class GtkVideo extends TKVideo implements GtkVideoListener
         }
     }
 
-    private function driver(): GtkVideoDriver
+    /**
+     * The driver, asked for once; null when it cannot be made on this system.
+     */
+    private function driver(): ?GtkVideoDriver
     {
-        /** @var GtkWindow $window */
-        $window = $this->window();
+        if (! $this->asked) {
+            $this->asked = true;
+            /** @var GtkWindow $window */
+            $window = $this->window();
+            try {
+                $this->driver = $window->adapter()->video()->driver();
+            } catch (VideoDriverUnsupported) {
+                $this->driver = null;
+            }
+        }
 
-        return $window->adapter()->video()->driver();
+        return $this->driver;
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Jovian\Toolkits\GTK\UI\GtkVideo;
 use Jovian\Toolkits\GTK\Video\MediaFile\MediaFileVideoPlayer;
+use Jovian\Toolkits\GTK\Video\VideoDriverUnsupported;
 use Jovian\Toolkits\GTK\Video\Gstreamer\GstreamerVideoPlayer;
 use Surface\Toolkits\UI\TKVideo;
 use Surface\Contracts\Toolkits\Mail\Views\VideoEnded;
@@ -12,8 +13,8 @@ use Surface\Contracts\Toolkits\Mail\Views\VideoPlaying;
 use Surface\Contracts\Toolkits\Mail\Views\VideoPaused;
 
 /*
-| A video on each driver. 'gtk' (GTK's own media) has no player on macOS: every source fails
-| and nothing plays. 'gstreamer' (jovian/venusian-gstreamer's playbin drawing through
+| A video on each driver. 'gtk' (GTK's own media) throws on macOS and the view has no player:
+| every source fails and nothing plays (on Linux the driver is made, and has no player yet). 'gstreamer' (jovian/venusian-gstreamer's playbin drawing through
 | gtk4paintablesink into a GtkPicture, with a bar of GTK's own icons while it has controls)
 | plays. The fixtures are a 1.2 s 160 x 120 H.264 clip and a 1 s AAC tone, played from disk and
 | from PHP's built-in server on 127.0.0.1 with byte ranges (fixtures/serve.php).
@@ -100,8 +101,12 @@ it('has no player on the gtk driver: every source posts VideoFailed with the rea
     $video->setSource('/tmp/clip.mp4');
     $failed = array_values(array_filter(takeMail(), fn (object $m): bool => $m instanceof VideoFailed));
 
-    expect($video->player())->toBeInstanceOf(MediaFileVideoPlayer::class)
-        ->and($video->supported())->toBeFalse()
+    if (device_os_family() === 'mac') {
+        expect($video->player())->toBeNull();
+    } else {
+        expect($video->player())->toBeInstanceOf(MediaFileVideoPlayer::class);
+    }
+    expect($video->supported())->toBeFalse()
         ->and($video->isPlaying())->toBeFalse()
         ->and($video->position())->toBe(0.0)
         ->and($video->duration())->toBeNull()
@@ -117,12 +122,31 @@ it('lays out as an empty area that fills on the gtk driver', function (): void {
     expect($video->size())->toBe([400, 300]);
 });
 
-it('is the widget of the gstreamer player', function (): void {
+it('has no player when its driver cannot be made on this system', function (): void {
+    driver()->video()->extend('nowhere', fn () => throw new VideoDriverUnsupported('No player here.'));
+    $video = gtkVideo('nowhere');
+    $video->setSource('https://example.org/clip.mp4');
+    $failed = array_values(array_filter(takeMail(), fn (object $m): bool => $m instanceof VideoFailed));
+    pumpFor(0.3);
+
+    expect($video->player())->toBeNull()
+        ->and($video->supported())->toBeFalse()
+        ->and($video->size())->toBe([400, 300])
+        ->and($failed)->toHaveCount(1)
+        ->and($failed[0]->reason)->toBe(TKVideo::NO_PLAYER);
+});
+
+it('throws on a driver name the manager does not know', function (): void {
+    expect(fn () => gtkVideo('nothing'))->toThrow(InvalidArgumentException::class, 'Driver [nothing] not supported.');
+});
+
+it('holds the gstreamer player\'s widget in its own box', function (): void {
     $video = gtkVideo('gstreamer');
     $player = $video->player();
 
     expect($player)->toBeInstanceOf(GstreamerVideoPlayer::class)
-        ->and($video->native())->toBe($player->widget())
+        ->and($video->native())->toBeInstanceOf(GtkBox::class)
+        ->and($video->native()->getFirstChild())->toBe($player->widget())
         ->and($video->supported())->toBeTrue()
         ->and($video->position())->toBe(0.0)
         ->and($video->duration())->toBeNull();
